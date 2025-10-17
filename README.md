@@ -2,6 +2,8 @@
 
 A complete, production-ready SQLite SQL parser in Python that returns detailed Abstract Syntax Trees (AST) for all SQLite SQL statements.
 
+📚 **[Read the Literate Programming Documentation](https://jaymd96.github.io/sqlite-ast-parser/)** - Comprehensive code walkthrough with explanations
+
 ## Features
 
 - **Complete SQLite Coverage**: Supports all SQLite statements (SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, transactions, etc.)
