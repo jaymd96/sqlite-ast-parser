@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>sqlite_parser/utils.py annotated source</title>
+    <link rel="stylesheet" href="../main.css">
+</head>
+
+<body>
+    <main>
+        <div class="line">
+            <div class="doc">
+                <h1>sqlite_parser/utils.py <span class="fade">annotated source</span></h1>
+                <em><a class="back" href="../">Back to index</a></em>
+            </div>
+            <pre></pre>
+        </div>
+        <div class="line"><div class="doc"><h1>Utility Functions and Constants</h1>
+<p>This module serves as the <strong>foundation</strong> of the SQLite parser, providing all the essential
+constants, enumerations, and lookup tables needed for tokenization and parsing.</p>
+<h2>Key Components</h2>
+<ol>
+<li><strong>TokenType Enum</strong>: Defines all 200+ token types including SQLite's 147 keywords,
+operators, delimiters, and literals</li>
+<li><strong>Keyword Mapping</strong>: Fast O(1) lookup from string to token type</li>
+<li><strong>Precedence Table</strong>: Defines operator precedence for expression parsing</li>
+<li><strong>Operator Mappings</strong>: Convert tokens to AST operator nodes</li>
+<li><strong>Helper Functions</strong>: Common operations like keyword checking and precedence lookup</li>
+</ol>
+<p>The design follows <strong>separation of concerns</strong>: this module contains only static data and
+pure functions, with no parsing or lexing logic.</p></div><pre class="source language-python"><strong class="lineNumber">17</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">18</strong><code class="language-python">&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">19</strong><code class="language-python">Utility Functions and Constants for SQLite SQL Parser</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">20</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">21</strong><code class="language-python">Contains keyword lists, precedence tables, and helper functions.</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">22</strong><code class="language-python">&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">23</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">24</strong><code class="language-python">from enum import Enum, auto</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">25</strong><code class="language-python">from typing import Dict, Set</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">26</strong><code class="language-python">from .ast_nodes import BinaryOperator, UnaryOperator</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">27</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Token Type Enumeration</h2>
+<p>The <code>TokenType</code> enum is the parser's <strong>vocabulary</strong>. It defines every distinct type of token
+that can appear in SQLite SQL, organized into logical categories:</p>
+<ul>
+<li><strong>Keywords</strong> (lines 15-168): All 147 SQLite reserved words plus TRUE/FALSE</li>
+<li><strong>Operators</strong> (lines 170-191): Arithmetic, comparison, bitwise, and special operators</li>
+<li><strong>Delimiters</strong> (lines 193-200): Parentheses, brackets, commas, and punctuation</li>
+<li><strong>Literals</strong> (lines 202-207): Numbers, strings, blobs, identifiers, and parameters</li>
+<li><strong>Special</strong> (lines 209-211): EOF and NEWLINE for parser control flow</li>
+</ul>
+<p>Using Python's <code>auto()</code> generates sequential integer values automatically, making it easy
+to add new token types without manual numbering.</p></div><pre class="source language-python"><strong class="lineNumber">41</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">42</strong><code class="language-python">class TokenType(Enum):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">43</strong><code class="language-python">    &quot;&quot;&quot;Token types for SQLite SQL&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">44</strong><code class="language-python">    # Keywords (147 SQLite keywords)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">45</strong><code class="language-python">    ABORT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">46</strong><code class="language-python">    ACTION = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">47</strong><code class="language-python">    ADD = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">48</strong><code class="language-python">    AFTER = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">49</strong><code class="language-python">    ALL = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">50</strong><code class="language-python">    ALTER = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">51</strong><code class="language-python">    ALWAYS = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">52</strong><code class="language-python">    ANALYZE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">53</strong><code class="language-python">    AND = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">54</strong><code class="language-python">    AS = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">55</strong><code class="language-python">    ASC = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">56</strong><code class="language-python">    ATTACH = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">57</strong><code class="language-python">    AUTOINCREMENT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">58</strong><code class="language-python">    BEFORE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">59</strong><code class="language-python">    BEGIN = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">60</strong><code class="language-python">    BETWEEN = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">61</strong><code class="language-python">    BY = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">62</strong><code class="language-python">    CASCADE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">63</strong><code class="language-python">    CASE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">64</strong><code class="language-python">    CAST = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">65</strong><code class="language-python">    CHECK = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">66</strong><code class="language-python">    COLLATE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">67</strong><code class="language-python">    COLUMN = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">68</strong><code class="language-python">    COMMIT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">69</strong><code class="language-python">    CONFLICT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">70</strong><code class="language-python">    CONSTRAINT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">71</strong><code class="language-python">    CREATE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">72</strong><code class="language-python">    CROSS = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">73</strong><code class="language-python">    CURRENT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">74</strong><code class="language-python">    CURRENT_DATE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">75</strong><code class="language-python">    CURRENT_TIME = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">76</strong><code class="language-python">    CURRENT_TIMESTAMP = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">77</strong><code class="language-python">    DATABASE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">78</strong><code class="language-python">    DEFAULT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">79</strong><code class="language-python">    DEFERRABLE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">80</strong><code class="language-python">    DEFERRED = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">81</strong><code class="language-python">    DELETE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">82</strong><code class="language-python">    DESC = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">83</strong><code class="language-python">    DETACH = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">84</strong><code class="language-python">    DISTINCT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">85</strong><code class="language-python">    DO = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">86</strong><code class="language-python">    DROP = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">87</strong><code class="language-python">    EACH = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">88</strong><code class="language-python">    ELSE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">89</strong><code class="language-python">    END = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">90</strong><code class="language-python">    ESCAPE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">91</strong><code class="language-python">    EXCEPT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">92</strong><code class="language-python">    EXCLUDE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">93</strong><code class="language-python">    EXCLUSIVE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">94</strong><code class="language-python">    EXISTS = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">95</strong><code class="language-python">    EXPLAIN = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">96</strong><code class="language-python">    FAIL = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">97</strong><code class="language-python">    FILTER = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">98</strong><code class="language-python">    FIRST = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">99</strong><code class="language-python">    FOLLOWING = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">100</strong><code class="language-python">    FOR = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">101</strong><code class="language-python">    FOREIGN = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">102</strong><code class="language-python">    FROM = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">103</strong><code class="language-python">    FULL = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">104</strong><code class="language-python">    GENERATED = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">105</strong><code class="language-python">    GLOB = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">106</strong><code class="language-python">    GROUP = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">107</strong><code class="language-python">    GROUPS = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">108</strong><code class="language-python">    HAVING = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">109</strong><code class="language-python">    IF = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">110</strong><code class="language-python">    IGNORE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">111</strong><code class="language-python">    IMMEDIATE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">112</strong><code class="language-python">    IN = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">113</strong><code class="language-python">    INDEX = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">114</strong><code class="language-python">    INDEXED = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">115</strong><code class="language-python">    INITIALLY = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">116</strong><code class="language-python">    INNER = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">117</strong><code class="language-python">    INSERT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">118</strong><code class="language-python">    INSTEAD = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">119</strong><code class="language-python">    INTERSECT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">120</strong><code class="language-python">    INTO = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">121</strong><code class="language-python">    IS = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">122</strong><code class="language-python">    ISNULL = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">123</strong><code class="language-python">    JOIN = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">124</strong><code class="language-python">    KEY = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">125</strong><code class="language-python">    LAST = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">126</strong><code class="language-python">    LEFT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">127</strong><code class="language-python">    LIKE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">128</strong><code class="language-python">    LIMIT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">129</strong><code class="language-python">    MATCH = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">130</strong><code class="language-python">    MATERIALIZED = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">131</strong><code class="language-python">    NATURAL = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">132</strong><code class="language-python">    NO = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">133</strong><code class="language-python">    NOT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">134</strong><code class="language-python">    NOTHING = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">135</strong><code class="language-python">    NOTNULL = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">136</strong><code class="language-python">    NULL = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">137</strong><code class="language-python">    NULLS = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">138</strong><code class="language-python">    OF = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">139</strong><code class="language-python">    OFFSET = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">140</strong><code class="language-python">    ON = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">141</strong><code class="language-python">    OR = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">142</strong><code class="language-python">    ORDER = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">143</strong><code class="language-python">    OTHERS = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">144</strong><code class="language-python">    OUTER = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">145</strong><code class="language-python">    OVER = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">146</strong><code class="language-python">    PARTITION = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">147</strong><code class="language-python">    PLAN = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">148</strong><code class="language-python">    PRAGMA = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">149</strong><code class="language-python">    PRECEDING = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">150</strong><code class="language-python">    PRIMARY = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">151</strong><code class="language-python">    QUERY = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">152</strong><code class="language-python">    RAISE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">153</strong><code class="language-python">    RANGE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">154</strong><code class="language-python">    RECURSIVE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">155</strong><code class="language-python">    REFERENCES = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">156</strong><code class="language-python">    REGEXP = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">157</strong><code class="language-python">    REINDEX = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">158</strong><code class="language-python">    RELEASE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">159</strong><code class="language-python">    RENAME = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">160</strong><code class="language-python">    REPLACE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">161</strong><code class="language-python">    RESTRICT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">162</strong><code class="language-python">    RETURNING = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">163</strong><code class="language-python">    RIGHT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">164</strong><code class="language-python">    ROLLBACK = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">165</strong><code class="language-python">    ROW = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">166</strong><code class="language-python">    ROWID = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">167</strong><code class="language-python">    ROWS = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">168</strong><code class="language-python">    SAVEPOINT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">169</strong><code class="language-python">    SELECT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">170</strong><code class="language-python">    SET = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">171</strong><code class="language-python">    STRICT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">172</strong><code class="language-python">    STORED = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">173</strong><code class="language-python">    TABLE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">174</strong><code class="language-python">    TEMP = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">175</strong><code class="language-python">    TEMPORARY = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">176</strong><code class="language-python">    THEN = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">177</strong><code class="language-python">    TIES = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">178</strong><code class="language-python">    TO = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">179</strong><code class="language-python">    TRANSACTION = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">180</strong><code class="language-python">    TRIGGER = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">181</strong><code class="language-python">    UNBOUNDED = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">182</strong><code class="language-python">    UNION = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">183</strong><code class="language-python">    UNIQUE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">184</strong><code class="language-python">    UPDATE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">185</strong><code class="language-python">    USING = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">186</strong><code class="language-python">    VACUUM = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">187</strong><code class="language-python">    VALUES = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">188</strong><code class="language-python">    VIEW = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">189</strong><code class="language-python">    VIRTUAL = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">190</strong><code class="language-python">    WHEN = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">191</strong><code class="language-python">    WHERE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">192</strong><code class="language-python">    WINDOW = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">193</strong><code class="language-python">    WITH = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">194</strong><code class="language-python">    WITHOUT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">195</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">196</strong><code class="language-python">    # Special keywords</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">197</strong><code class="language-python">    TRUE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">198</strong><code class="language-python">    FALSE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">199</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">200</strong><code class="language-python">    # Operators</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">201</strong><code class="language-python">    PLUS = auto()              # +</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">202</strong><code class="language-python">    MINUS = auto()             # -</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">203</strong><code class="language-python">    STAR = auto()              # *</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">204</strong><code class="language-python">    SLASH = auto()             # /</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">205</strong><code class="language-python">    PERCENT = auto()           # %</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">206</strong><code class="language-python">    CONCAT = auto()            # ||</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">207</strong><code class="language-python">    EQUAL = auto()             # =</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">208</strong><code class="language-python">    EQUAL2 = auto()            # ==</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">209</strong><code class="language-python">    NOT_EQUAL = auto()         # !=</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">210</strong><code class="language-python">    NOT_EQUAL2 = auto()        # &lt;&gt;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">211</strong><code class="language-python">    LESS = auto()              # &lt;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">212</strong><code class="language-python">    GREATER = auto()           # &gt;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">213</strong><code class="language-python">    LESS_EQUAL = auto()        # &lt;=</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">214</strong><code class="language-python">    GREATER_EQUAL = auto()     # &gt;=</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">215</strong><code class="language-python">    LEFT_SHIFT = auto()        # &lt;&lt;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">216</strong><code class="language-python">    RIGHT_SHIFT = auto()       # &gt;&gt;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">217</strong><code class="language-python">    AMPERSAND = auto()         # &amp;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">218</strong><code class="language-python">    PIPE = auto()              # |</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">219</strong><code class="language-python">    TILDE = auto()             # ~</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">220</strong><code class="language-python">    ARROW = auto()             # -&gt;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">221</strong><code class="language-python">    DOUBLE_ARROW = auto()      # -&gt;&gt;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">222</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">223</strong><code class="language-python">    # Delimiters</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">224</strong><code class="language-python">    LPAREN = auto()            # (</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">225</strong><code class="language-python">    RPAREN = auto()            # )</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">226</strong><code class="language-python">    LBRACKET = auto()          # [</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">227</strong><code class="language-python">    RBRACKET = auto()          # ]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">228</strong><code class="language-python">    COMMA = auto()             # ,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">229</strong><code class="language-python">    SEMICOLON = auto()         # ;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">230</strong><code class="language-python">    DOT = auto()               # .</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">231</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">232</strong><code class="language-python">    # Literals</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">233</strong><code class="language-python">    NUMBER = auto()            # 123, 123.45, 1.5e10</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">234</strong><code class="language-python">    STRING = auto()            # &#x27;string&#x27;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">235</strong><code class="language-python">    BLOB = auto()              # X&#x27;hex&#x27;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">236</strong><code class="language-python">    IDENTIFIER = auto()        # name, [name], &quot;name&quot;, `name`</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">237</strong><code class="language-python">    PARAMETER = auto()         # ?, ?123, :name, @name, $name</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">238</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">239</strong><code class="language-python">    # Special</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">240</strong><code class="language-python">    EOF = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">241</strong><code class="language-python">    NEWLINE = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">242</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Keyword Lookup Dictionary</h2>
+<p>The <code>KEYWORDS</code> dictionary provides <strong>O(1) lookup</strong> from uppercase string to TokenType.
+This is used during lexing to distinguish keywords from identifiers.</p>
+<h3>Design Decisions</h3>
+<ul>
+<li><strong>Case insensitivity</strong>: All keys are uppercase because SQLite keywords are case-insensitive.
+The lexer normalizes input before lookup.</li>
+<li><strong>Complete coverage</strong>: Includes all 147 official SQLite keywords from the
+<a href="https://sqlite.org/lang_keywords.html">SQLite documentation</a></li>
+<li><strong>Easy maintenance</strong>: The 1:1 mapping from string to enum makes it trivial to add new keywords</li>
+</ul>
+<p>When the lexer encounters an identifier, it checks <code>KEYWORDS</code> to determine if it's actually
+a reserved word.</p></div><pre class="source language-python"><strong class="lineNumber">258</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">259</strong><code class="language-python"># Map keyword strings to token types</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">260</strong><code class="language-python">KEYWORDS: Dict[str, TokenType] = {</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">261</strong><code class="language-python">    &#x27;ABORT&#x27;: TokenType.ABORT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">262</strong><code class="language-python">    &#x27;ACTION&#x27;: TokenType.ACTION,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">263</strong><code class="language-python">    &#x27;ADD&#x27;: TokenType.ADD,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">264</strong><code class="language-python">    &#x27;AFTER&#x27;: TokenType.AFTER,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">265</strong><code class="language-python">    &#x27;ALL&#x27;: TokenType.ALL,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">266</strong><code class="language-python">    &#x27;ALTER&#x27;: TokenType.ALTER,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">267</strong><code class="language-python">    &#x27;ALWAYS&#x27;: TokenType.ALWAYS,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">268</strong><code class="language-python">    &#x27;ANALYZE&#x27;: TokenType.ANALYZE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">269</strong><code class="language-python">    &#x27;AND&#x27;: TokenType.AND,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">270</strong><code class="language-python">    &#x27;AS&#x27;: TokenType.AS,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">271</strong><code class="language-python">    &#x27;ASC&#x27;: TokenType.ASC,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">272</strong><code class="language-python">    &#x27;ATTACH&#x27;: TokenType.ATTACH,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">273</strong><code class="language-python">    &#x27;AUTOINCREMENT&#x27;: TokenType.AUTOINCREMENT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">274</strong><code class="language-python">    &#x27;BEFORE&#x27;: TokenType.BEFORE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">275</strong><code class="language-python">    &#x27;BEGIN&#x27;: TokenType.BEGIN,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">276</strong><code class="language-python">    &#x27;BETWEEN&#x27;: TokenType.BETWEEN,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">277</strong><code class="language-python">    &#x27;BY&#x27;: TokenType.BY,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">278</strong><code class="language-python">    &#x27;CASCADE&#x27;: TokenType.CASCADE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">279</strong><code class="language-python">    &#x27;CASE&#x27;: TokenType.CASE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">280</strong><code class="language-python">    &#x27;CAST&#x27;: TokenType.CAST,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">281</strong><code class="language-python">    &#x27;CHECK&#x27;: TokenType.CHECK,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">282</strong><code class="language-python">    &#x27;COLLATE&#x27;: TokenType.COLLATE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">283</strong><code class="language-python">    &#x27;COLUMN&#x27;: TokenType.COLUMN,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">284</strong><code class="language-python">    &#x27;COMMIT&#x27;: TokenType.COMMIT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">285</strong><code class="language-python">    &#x27;CONFLICT&#x27;: TokenType.CONFLICT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">286</strong><code class="language-python">    &#x27;CONSTRAINT&#x27;: TokenType.CONSTRAINT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">287</strong><code class="language-python">    &#x27;CREATE&#x27;: TokenType.CREATE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">288</strong><code class="language-python">    &#x27;CROSS&#x27;: TokenType.CROSS,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">289</strong><code class="language-python">    &#x27;CURRENT&#x27;: TokenType.CURRENT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">290</strong><code class="language-python">    &#x27;CURRENT_DATE&#x27;: TokenType.CURRENT_DATE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">291</strong><code class="language-python">    &#x27;CURRENT_TIME&#x27;: TokenType.CURRENT_TIME,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">292</strong><code class="language-python">    &#x27;CURRENT_TIMESTAMP&#x27;: TokenType.CURRENT_TIMESTAMP,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">293</strong><code class="language-python">    &#x27;DATABASE&#x27;: TokenType.DATABASE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">294</strong><code class="language-python">    &#x27;DEFAULT&#x27;: TokenType.DEFAULT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">295</strong><code class="language-python">    &#x27;DEFERRABLE&#x27;: TokenType.DEFERRABLE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">296</strong><code class="language-python">    &#x27;DEFERRED&#x27;: TokenType.DEFERRED,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">297</strong><code class="language-python">    &#x27;DELETE&#x27;: TokenType.DELETE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">298</strong><code class="language-python">    &#x27;DESC&#x27;: TokenType.DESC,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">299</strong><code class="language-python">    &#x27;DETACH&#x27;: TokenType.DETACH,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">300</strong><code class="language-python">    &#x27;DISTINCT&#x27;: TokenType.DISTINCT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">301</strong><code class="language-python">    &#x27;DO&#x27;: TokenType.DO,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">302</strong><code class="language-python">    &#x27;DROP&#x27;: TokenType.DROP,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">303</strong><code class="language-python">    &#x27;EACH&#x27;: TokenType.EACH,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">304</strong><code class="language-python">    &#x27;ELSE&#x27;: TokenType.ELSE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">305</strong><code class="language-python">    &#x27;END&#x27;: TokenType.END,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">306</strong><code class="language-python">    &#x27;ESCAPE&#x27;: TokenType.ESCAPE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">307</strong><code class="language-python">    &#x27;EXCEPT&#x27;: TokenType.EXCEPT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">308</strong><code class="language-python">    &#x27;EXCLUDE&#x27;: TokenType.EXCLUDE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">309</strong><code class="language-python">    &#x27;EXCLUSIVE&#x27;: TokenType.EXCLUSIVE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">310</strong><code class="language-python">    &#x27;EXISTS&#x27;: TokenType.EXISTS,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">311</strong><code class="language-python">    &#x27;EXPLAIN&#x27;: TokenType.EXPLAIN,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">312</strong><code class="language-python">    &#x27;FAIL&#x27;: TokenType.FAIL,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">313</strong><code class="language-python">    &#x27;FILTER&#x27;: TokenType.FILTER,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">314</strong><code class="language-python">    &#x27;FIRST&#x27;: TokenType.FIRST,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">315</strong><code class="language-python">    &#x27;FOLLOWING&#x27;: TokenType.FOLLOWING,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">316</strong><code class="language-python">    &#x27;FOR&#x27;: TokenType.FOR,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">317</strong><code class="language-python">    &#x27;FOREIGN&#x27;: TokenType.FOREIGN,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">318</strong><code class="language-python">    &#x27;FROM&#x27;: TokenType.FROM,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">319</strong><code class="language-python">    &#x27;FULL&#x27;: TokenType.FULL,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">320</strong><code class="language-python">    &#x27;GENERATED&#x27;: TokenType.GENERATED,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">321</strong><code class="language-python">    &#x27;GLOB&#x27;: TokenType.GLOB,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">322</strong><code class="language-python">    &#x27;GROUP&#x27;: TokenType.GROUP,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">323</strong><code class="language-python">    &#x27;GROUPS&#x27;: TokenType.GROUPS,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">324</strong><code class="language-python">    &#x27;HAVING&#x27;: TokenType.HAVING,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">325</strong><code class="language-python">    &#x27;IF&#x27;: TokenType.IF,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">326</strong><code class="language-python">    &#x27;IGNORE&#x27;: TokenType.IGNORE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">327</strong><code class="language-python">    &#x27;IMMEDIATE&#x27;: TokenType.IMMEDIATE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">328</strong><code class="language-python">    &#x27;IN&#x27;: TokenType.IN,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">329</strong><code class="language-python">    &#x27;INDEX&#x27;: TokenType.INDEX,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">330</strong><code class="language-python">    &#x27;INDEXED&#x27;: TokenType.INDEXED,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">331</strong><code class="language-python">    &#x27;INITIALLY&#x27;: TokenType.INITIALLY,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">332</strong><code class="language-python">    &#x27;INNER&#x27;: TokenType.INNER,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">333</strong><code class="language-python">    &#x27;INSERT&#x27;: TokenType.INSERT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">334</strong><code class="language-python">    &#x27;INSTEAD&#x27;: TokenType.INSTEAD,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">335</strong><code class="language-python">    &#x27;INTERSECT&#x27;: TokenType.INTERSECT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">336</strong><code class="language-python">    &#x27;INTO&#x27;: TokenType.INTO,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">337</strong><code class="language-python">    &#x27;IS&#x27;: TokenType.IS,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">338</strong><code class="language-python">    &#x27;ISNULL&#x27;: TokenType.ISNULL,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">339</strong><code class="language-python">    &#x27;JOIN&#x27;: TokenType.JOIN,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">340</strong><code class="language-python">    &#x27;KEY&#x27;: TokenType.KEY,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">341</strong><code class="language-python">    &#x27;LAST&#x27;: TokenType.LAST,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">342</strong><code class="language-python">    &#x27;LEFT&#x27;: TokenType.LEFT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">343</strong><code class="language-python">    &#x27;LIKE&#x27;: TokenType.LIKE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">344</strong><code class="language-python">    &#x27;LIMIT&#x27;: TokenType.LIMIT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">345</strong><code class="language-python">    &#x27;MATCH&#x27;: TokenType.MATCH,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">346</strong><code class="language-python">    &#x27;MATERIALIZED&#x27;: TokenType.MATERIALIZED,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">347</strong><code class="language-python">    &#x27;NATURAL&#x27;: TokenType.NATURAL,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">348</strong><code class="language-python">    &#x27;NO&#x27;: TokenType.NO,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">349</strong><code class="language-python">    &#x27;NOT&#x27;: TokenType.NOT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">350</strong><code class="language-python">    &#x27;NOTHING&#x27;: TokenType.NOTHING,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">351</strong><code class="language-python">    &#x27;NOTNULL&#x27;: TokenType.NOTNULL,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">352</strong><code class="language-python">    &#x27;NULL&#x27;: TokenType.NULL,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">353</strong><code class="language-python">    &#x27;NULLS&#x27;: TokenType.NULLS,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">354</strong><code class="language-python">    &#x27;OF&#x27;: TokenType.OF,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">355</strong><code class="language-python">    &#x27;OFFSET&#x27;: TokenType.OFFSET,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">356</strong><code class="language-python">    &#x27;ON&#x27;: TokenType.ON,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">357</strong><code class="language-python">    &#x27;OR&#x27;: TokenType.OR,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">358</strong><code class="language-python">    &#x27;ORDER&#x27;: TokenType.ORDER,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">359</strong><code class="language-python">    &#x27;OTHERS&#x27;: TokenType.OTHERS,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">360</strong><code class="language-python">    &#x27;OUTER&#x27;: TokenType.OUTER,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">361</strong><code class="language-python">    &#x27;OVER&#x27;: TokenType.OVER,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">362</strong><code class="language-python">    &#x27;PARTITION&#x27;: TokenType.PARTITION,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">363</strong><code class="language-python">    &#x27;PLAN&#x27;: TokenType.PLAN,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">364</strong><code class="language-python">    &#x27;PRAGMA&#x27;: TokenType.PRAGMA,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">365</strong><code class="language-python">    &#x27;PRECEDING&#x27;: TokenType.PRECEDING,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">366</strong><code class="language-python">    &#x27;PRIMARY&#x27;: TokenType.PRIMARY,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">367</strong><code class="language-python">    &#x27;QUERY&#x27;: TokenType.QUERY,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">368</strong><code class="language-python">    &#x27;RAISE&#x27;: TokenType.RAISE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">369</strong><code class="language-python">    &#x27;RANGE&#x27;: TokenType.RANGE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">370</strong><code class="language-python">    &#x27;RECURSIVE&#x27;: TokenType.RECURSIVE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">371</strong><code class="language-python">    &#x27;REFERENCES&#x27;: TokenType.REFERENCES,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">372</strong><code class="language-python">    &#x27;REGEXP&#x27;: TokenType.REGEXP,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">373</strong><code class="language-python">    &#x27;REINDEX&#x27;: TokenType.REINDEX,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">374</strong><code class="language-python">    &#x27;RELEASE&#x27;: TokenType.RELEASE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">375</strong><code class="language-python">    &#x27;RENAME&#x27;: TokenType.RENAME,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">376</strong><code class="language-python">    &#x27;REPLACE&#x27;: TokenType.REPLACE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">377</strong><code class="language-python">    &#x27;RESTRICT&#x27;: TokenType.RESTRICT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">378</strong><code class="language-python">    &#x27;RETURNING&#x27;: TokenType.RETURNING,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">379</strong><code class="language-python">    &#x27;RIGHT&#x27;: TokenType.RIGHT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">380</strong><code class="language-python">    &#x27;ROLLBACK&#x27;: TokenType.ROLLBACK,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">381</strong><code class="language-python">    &#x27;ROW&#x27;: TokenType.ROW,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">382</strong><code class="language-python">    &#x27;ROWID&#x27;: TokenType.ROWID,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">383</strong><code class="language-python">    &#x27;ROWS&#x27;: TokenType.ROWS,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">384</strong><code class="language-python">    &#x27;SAVEPOINT&#x27;: TokenType.SAVEPOINT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">385</strong><code class="language-python">    &#x27;SELECT&#x27;: TokenType.SELECT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">386</strong><code class="language-python">    &#x27;SET&#x27;: TokenType.SET,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">387</strong><code class="language-python">    &#x27;STORED&#x27;: TokenType.STORED,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">388</strong><code class="language-python">    &#x27;STRICT&#x27;: TokenType.STRICT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">389</strong><code class="language-python">    &#x27;TABLE&#x27;: TokenType.TABLE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">390</strong><code class="language-python">    &#x27;TEMP&#x27;: TokenType.TEMP,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">391</strong><code class="language-python">    &#x27;TEMPORARY&#x27;: TokenType.TEMPORARY,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">392</strong><code class="language-python">    &#x27;THEN&#x27;: TokenType.THEN,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">393</strong><code class="language-python">    &#x27;TIES&#x27;: TokenType.TIES,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">394</strong><code class="language-python">    &#x27;TO&#x27;: TokenType.TO,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">395</strong><code class="language-python">    &#x27;TRANSACTION&#x27;: TokenType.TRANSACTION,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">396</strong><code class="language-python">    &#x27;TRIGGER&#x27;: TokenType.TRIGGER,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">397</strong><code class="language-python">    &#x27;UNBOUNDED&#x27;: TokenType.UNBOUNDED,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">398</strong><code class="language-python">    &#x27;UNION&#x27;: TokenType.UNION,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">399</strong><code class="language-python">    &#x27;UNIQUE&#x27;: TokenType.UNIQUE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">400</strong><code class="language-python">    &#x27;UPDATE&#x27;: TokenType.UPDATE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">401</strong><code class="language-python">    &#x27;USING&#x27;: TokenType.USING,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">402</strong><code class="language-python">    &#x27;VACUUM&#x27;: TokenType.VACUUM,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">403</strong><code class="language-python">    &#x27;VALUES&#x27;: TokenType.VALUES,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">404</strong><code class="language-python">    &#x27;VIEW&#x27;: TokenType.VIEW,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">405</strong><code class="language-python">    &#x27;VIRTUAL&#x27;: TokenType.VIRTUAL,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">406</strong><code class="language-python">    &#x27;WHEN&#x27;: TokenType.WHEN,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">407</strong><code class="language-python">    &#x27;WHERE&#x27;: TokenType.WHERE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">408</strong><code class="language-python">    &#x27;WINDOW&#x27;: TokenType.WINDOW,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">409</strong><code class="language-python">    &#x27;WITH&#x27;: TokenType.WITH,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">410</strong><code class="language-python">    &#x27;WITHOUT&#x27;: TokenType.WITHOUT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">411</strong><code class="language-python">    &#x27;TRUE&#x27;: TokenType.TRUE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">412</strong><code class="language-python">    &#x27;FALSE&#x27;: TokenType.FALSE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">413</strong><code class="language-python">}</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">414</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Operator Precedence Table</h2>
+<p>The <code>PRECEDENCE</code> dictionary defines the <strong>parsing priority</strong> for binary operators.
+Lower numbers bind less tightly (evaluate later), following the <strong>precedence climbing</strong>
+algorithm used in expression parsing.</p>
+<h3>Precedence Levels (from lowest to highest)</h3>
+<ol>
+<li><strong>OR</strong> (1): Logical OR - lowest precedence, binds loosest</li>
+<li><strong>AND</strong> (2): Logical AND</li>
+<li><strong>NOT</strong> (3): Logical negation (unary, but listed here for reference)</li>
+<li><strong>Comparison</strong> (4): <code>=</code>, <code>&lt;</code>, <code>&gt;</code>, <code>IS</code>, <code>IN</code>, <code>LIKE</code>, <code>BETWEEN</code>, etc.</li>
+<li><strong>Bitwise</strong> (5): Bit shifts and bitwise AND/OR</li>
+<li><strong>Additive</strong> (6): <code>+</code>, <code>-</code>, <code>||</code> (string concatenation)</li>
+<li><strong>Multiplicative</strong> (7): <code>*</code>, <code>/</code>, <code>%</code> - highest precedence, binds tightest</li>
+</ol>
+<h3>Example</h3>
+<p>In <code>1 + 2 * 3 OR 4 &lt; 5 AND 6</code>:
+- <code>2 * 3</code> evaluates first (precedence 7)
+- <code>1 + 6</code> follows (precedence 6)
+- <code>4 &lt; 5</code> comparison (precedence 4)
+- <code>AND</code> (precedence 2)
+- <code>OR</code> (precedence 1) last</p>
+<p><strong>Note</strong>: Special operators like <code>BETWEEN</code>, <code>IN</code>, and <code>LIKE</code> have their own parsing methods,
+but are listed here at precedence 4 for when they appear as binary operators.</p></div><pre class="source language-python"><strong class="lineNumber">442</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">443</strong><code class="language-python"># Operator precedence (lower number = lower precedence)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">444</strong><code class="language-python">PRECEDENCE: Dict[TokenType, int] = {</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">445</strong><code class="language-python">    TokenType.OR: 1,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">446</strong><code class="language-python">    TokenType.AND: 2,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">447</strong><code class="language-python">    TokenType.NOT: 3,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">448</strong><code class="language-python">    # Comparison operators</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">449</strong><code class="language-python">    TokenType.EQUAL: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">450</strong><code class="language-python">    TokenType.EQUAL2: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">451</strong><code class="language-python">    TokenType.NOT_EQUAL: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">452</strong><code class="language-python">    TokenType.NOT_EQUAL2: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">453</strong><code class="language-python">    TokenType.LESS: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">454</strong><code class="language-python">    TokenType.GREATER: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">455</strong><code class="language-python">    TokenType.LESS_EQUAL: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">456</strong><code class="language-python">    TokenType.GREATER_EQUAL: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">457</strong><code class="language-python">    TokenType.IS: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">458</strong><code class="language-python">    TokenType.IN: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">459</strong><code class="language-python">    TokenType.LIKE: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">460</strong><code class="language-python">    TokenType.GLOB: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">461</strong><code class="language-python">    TokenType.MATCH: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">462</strong><code class="language-python">    TokenType.REGEXP: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">463</strong><code class="language-python">    TokenType.BETWEEN: 4,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">464</strong><code class="language-python">    # Bitwise</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">465</strong><code class="language-python">    TokenType.LEFT_SHIFT: 5,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">466</strong><code class="language-python">    TokenType.RIGHT_SHIFT: 5,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">467</strong><code class="language-python">    TokenType.AMPERSAND: 5,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">468</strong><code class="language-python">    TokenType.PIPE: 5,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">469</strong><code class="language-python">    # Arithmetic and string</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">470</strong><code class="language-python">    TokenType.PLUS: 6,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">471</strong><code class="language-python">    TokenType.MINUS: 6,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">472</strong><code class="language-python">    TokenType.CONCAT: 6,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">473</strong><code class="language-python">    TokenType.STAR: 7,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">474</strong><code class="language-python">    TokenType.SLASH: 7,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">475</strong><code class="language-python">    TokenType.PERCENT: 7,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">476</strong><code class="language-python">    # COLLATE handled specially</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">477</strong><code class="language-python">    # Unary handled specially</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">478</strong><code class="language-python">}</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">479</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Associativity</h2>
+<p>SQL operators are <strong>left-associative</strong> by default, meaning <code>a - b - c</code> parses as <code>(a - b) - c</code>.
+This empty set is a placeholder for any right-associative operators that might be added in
+the future (though SQL has very few right-associative operators).</p></div><pre class="source language-python"><strong class="lineNumber">485</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">486</strong><code class="language-python"># Right-associative operators</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">487</strong><code class="language-python">RIGHT_ASSOCIATIVE: Set[TokenType] = set()  # Most operators in SQL are left-associative</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">488</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Helper Functions</h2>
+<p>These utility functions provide <strong>clean abstractions</strong> over the lookup tables, making
+the lexer and parser code more readable and maintainable.</p>
+<p>Each function has a single, clear responsibility:
+- Keyword checking and normalization
+- Operator classification and precedence lookup
+- Token-to-AST-node conversion</p></div><pre class="source language-python"><strong class="lineNumber">498</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">499</strong><code class="language-python">def is_keyword(word: str) -&gt; bool:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">500</strong><code class="language-python">    &quot;&quot;&quot;Check if a word is a SQLite keyword&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">501</strong><code class="language-python">    return word.upper() in KEYWORDS</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">502</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">503</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">504</strong><code class="language-python">def normalize_keyword(word: str) -&gt; str:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">505</strong><code class="language-python">    &quot;&quot;&quot;Normalize keyword to uppercase&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">506</strong><code class="language-python">    return word.upper()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">507</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">508</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">509</strong><code class="language-python">def get_keyword_token_type(word: str) -&gt; TokenType:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">510</strong><code class="language-python">    &quot;&quot;&quot;Get token type for keyword&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">511</strong><code class="language-python">    return KEYWORDS.get(word.upper(), TokenType.IDENTIFIER)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">512</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">513</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">514</strong><code class="language-python">def is_binary_operator(token_type: TokenType) -&gt; bool:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">515</strong><code class="language-python">    &quot;&quot;&quot;Check if token type is a binary operator&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">516</strong><code class="language-python">    return token_type in PRECEDENCE</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">517</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">518</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">519</strong><code class="language-python">def get_precedence(token_type: TokenType) -&gt; int:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">520</strong><code class="language-python">    &quot;&quot;&quot;Get precedence for operator&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">521</strong><code class="language-python">    return PRECEDENCE.get(token_type, 0)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">522</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">523</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">524</strong><code class="language-python">def is_right_associative(token_type: TokenType) -&gt; bool:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">525</strong><code class="language-python">    &quot;&quot;&quot;Check if operator is right-associative&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">526</strong><code class="language-python">    return token_type in RIGHT_ASSOCIATIVE</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">527</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Token-to-AST Operator Mappings</h2>
+<p>These dictionaries convert <strong>TokenTypes</strong> to <strong>AST operator enums</strong>, bridging the gap
+between the lexer (which produces tokens) and the parser (which builds AST nodes).</p>
+<h3>Binary Operators</h3>
+<p>Maps operator tokens to <code>BinaryOperator</code> enum values. For example, when the parser
+sees a <code>TokenType.PLUS</code> token, it converts it to <code>BinaryOperator.ADD</code> for the AST node.</p>
+<p>This separation allows the same token type to map to different operators in different
+contexts (though SQL doesn't often need this flexibility).</p></div><pre class="source language-python"><strong class="lineNumber">540</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">541</strong><code class="language-python"># Token type to binary operator mapping</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">542</strong><code class="language-python">TOKEN_TO_BINARY_OP: Dict[TokenType, BinaryOperator] = {</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">543</strong><code class="language-python">    TokenType.PLUS: BinaryOperator.ADD,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">544</strong><code class="language-python">    TokenType.MINUS: BinaryOperator.SUBTRACT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">545</strong><code class="language-python">    TokenType.STAR: BinaryOperator.MULTIPLY,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">546</strong><code class="language-python">    TokenType.SLASH: BinaryOperator.DIVIDE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">547</strong><code class="language-python">    TokenType.PERCENT: BinaryOperator.MODULO,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">548</strong><code class="language-python">    TokenType.EQUAL: BinaryOperator.EQUAL,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">549</strong><code class="language-python">    TokenType.EQUAL2: BinaryOperator.EQUAL2,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">550</strong><code class="language-python">    TokenType.NOT_EQUAL: BinaryOperator.NOT_EQUAL,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">551</strong><code class="language-python">    TokenType.NOT_EQUAL2: BinaryOperator.NOT_EQUAL2,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">552</strong><code class="language-python">    TokenType.LESS: BinaryOperator.LESS_THAN,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">553</strong><code class="language-python">    TokenType.GREATER: BinaryOperator.GREATER_THAN,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">554</strong><code class="language-python">    TokenType.LESS_EQUAL: BinaryOperator.LESS_EQUAL,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">555</strong><code class="language-python">    TokenType.GREATER_EQUAL: BinaryOperator.GREATER_EQUAL,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">556</strong><code class="language-python">    TokenType.AND: BinaryOperator.AND,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">557</strong><code class="language-python">    TokenType.OR: BinaryOperator.OR,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">558</strong><code class="language-python">    TokenType.AMPERSAND: BinaryOperator.BIT_AND,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">559</strong><code class="language-python">    TokenType.PIPE: BinaryOperator.BIT_OR,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">560</strong><code class="language-python">    TokenType.LEFT_SHIFT: BinaryOperator.LEFT_SHIFT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">561</strong><code class="language-python">    TokenType.RIGHT_SHIFT: BinaryOperator.RIGHT_SHIFT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">562</strong><code class="language-python">    TokenType.CONCAT: BinaryOperator.CONCAT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">563</strong><code class="language-python">    TokenType.IS: BinaryOperator.IS,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">564</strong><code class="language-python">    TokenType.IN: BinaryOperator.IN,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">565</strong><code class="language-python">    TokenType.LIKE: BinaryOperator.LIKE,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">566</strong><code class="language-python">    TokenType.GLOB: BinaryOperator.GLOB,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">567</strong><code class="language-python">    TokenType.MATCH: BinaryOperator.MATCH,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">568</strong><code class="language-python">    TokenType.REGEXP: BinaryOperator.REGEXP,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">569</strong><code class="language-python">}</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">570</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h3>Unary Operators</h3>
+<p>Maps unary operator tokens to <code>UnaryOperator</code> enum values. Unary operators appear before
+their operand (prefix position): <code>-5</code>, <code>NOT condition</code>, <code>~bitmask</code>.</p>
+<p>Note that <code>+</code> and <code>-</code> can be both unary and binary operators. The parser determines which
+based on context (whether there's a left operand).</p></div><pre class="source language-python"><strong class="lineNumber">578</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">579</strong><code class="language-python"># Token type to unary operator mapping</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">580</strong><code class="language-python">TOKEN_TO_UNARY_OP: Dict[TokenType, UnaryOperator] = {</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">581</strong><code class="language-python">    TokenType.PLUS: UnaryOperator.PLUS,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">582</strong><code class="language-python">    TokenType.MINUS: UnaryOperator.MINUS,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">583</strong><code class="language-python">    TokenType.NOT: UnaryOperator.NOT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">584</strong><code class="language-python">    TokenType.TILDE: UnaryOperator.BITNOT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">585</strong><code class="language-python">}</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">586</strong><code class="language-python"></code></pre></div>
+    </main>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+
+</html>

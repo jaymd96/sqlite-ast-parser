@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>examples/basic_usage.py annotated source</title>
+    <link rel="stylesheet" href="../main.css">
+</head>
+
+<body>
+    <main>
+        <div class="line">
+            <div class="doc">
+                <h1>examples/basic_usage.py <span class="fade">annotated source</span></h1>
+                <em><a class="back" href="../">Back to index</a></em>
+            </div>
+            <pre></pre>
+        </div>
+        <div class="line"><div class="doc"><h1>Basic Usage Examples</h1>
+<p>This module demonstrates <strong>practical usage patterns</strong> for the sqlite-ast-parser library.
+It shows how to parse different SQL statement types and inspect the resulting AST nodes.</p>
+<h2>What You'll Learn</h2>
+<ul>
+<li>How to call <code>parse_sql()</code> and interpret results</li>
+<li>How to navigate AST node structures</li>
+<li>How to handle parse errors gracefully</li>
+<li>How to use <code>tokenize_sql()</code> for low-level analysis</li>
+</ul>
+<h2>Examples Covered</h2>
+<ol>
+<li><strong>DML Statements</strong>: SELECT, INSERT, UPDATE, DELETE</li>
+<li><strong>DDL Statements</strong>: CREATE TABLE with constraints</li>
+<li><strong>Advanced Features</strong>: CTEs (WITH clause), compound queries (UNION), window functions</li>
+<li><strong>Transaction Control</strong>: BEGIN, SAVEPOINT, COMMIT, ROLLBACK</li>
+<li><strong>Error Handling</strong>: How to catch and report parse errors</li>
+<li><strong>Tokenization</strong>: Low-level token inspection</li>
+</ol>
+<p>Each example function demonstrates a specific SQL feature and shows how to access
+the relevant parts of the AST.</p></div><pre class="source language-python"><strong class="lineNumber">24</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">25</strong><code class="language-python">&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">26</strong><code class="language-python">Basic Usage Examples for SQLite SQL Parser</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">27</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">28</strong><code class="language-python">Demonstrates how to use the parser for various SQL statements.</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">29</strong><code class="language-python">&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">30</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">31</strong><code class="language-python">import sys</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">32</strong><code class="language-python">sys.path.insert(0, &#x27;..&#x27;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">33</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">34</strong><code class="language-python">from sqlite_parser import parse_sql, tokenize_sql</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">35</strong><code class="language-python">from sqlite_parser.errors import ParseError</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">36</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>SELECT Statement Parsing</h2>
+<p>The SELECT statement is the most complex SQL statement type, supporting:
+- Column selection with expressions and aliases
+- Table joins (INNER, LEFT, RIGHT, CROSS, NATURAL)
+- WHERE clauses for filtering
+- GROUP BY and HAVING for aggregation
+- ORDER BY for sorting
+- LIMIT and OFFSET for pagination</p>
+<p>The parser returns a <code>SelectStatement</code> node with:
+- <code>select_core</code>: Contains columns, FROM, WHERE, GROUP BY
+- <code>order_by</code>: ORDER BY clause
+- <code>limit</code>: LIMIT expression
+- <code>offset</code>: OFFSET expression</p></div><pre class="source language-python"><strong class="lineNumber">52</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">53</strong><code class="language-python">def example_select():</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">54</strong><code class="language-python">    &quot;&quot;&quot;Parse a SELECT statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">55</strong><code class="language-python">    print(&quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">56</strong><code class="language-python">    print(&quot;SELECT Statement Example&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">57</strong><code class="language-python">    print(&quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">58</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">59</strong><code class="language-python">    sql = &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">60</strong><code class="language-python">    SELECT u.id, u.name, COUNT(o.id) as order_count</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">61</strong><code class="language-python">    FROM users u</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">62</strong><code class="language-python">    LEFT JOIN orders o ON u.id = o.user_id</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">63</strong><code class="language-python">    WHERE u.age &gt; 18</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">64</strong><code class="language-python">    GROUP BY u.id, u.name</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">65</strong><code class="language-python">    HAVING COUNT(o.id) &gt; 0</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">66</strong><code class="language-python">    ORDER BY order_count DESC</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">67</strong><code class="language-python">    LIMIT 10</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">68</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">69</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">70</strong><code class="language-python">    ast = parse_sql(sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">71</strong><code class="language-python">    print(f&quot;Parsed {len(ast)} statement(s)&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">72</strong><code class="language-python">    print(f&quot;\nStatement type: {type(ast[0]).__name__}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">73</strong><code class="language-python">    print(f&quot;Has WHERE clause: {ast[0].select_core.where is not None}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">74</strong><code class="language-python">    print(f&quot;Has GROUP BY: {ast[0].select_core.group_by is not None}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">75</strong><code class="language-python">    print(f&quot;Has ORDER BY: {ast[0].order_by is not None}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">76</strong><code class="language-python">    print(f&quot;Has LIMIT: {ast[0].limit is not None}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">77</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">78</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">79</strong><code class="language-python">def example_insert():</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">80</strong><code class="language-python">    &quot;&quot;&quot;Parse an INSERT statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">81</strong><code class="language-python">    print(&quot;\n&quot; + &quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">82</strong><code class="language-python">    print(&quot;INSERT Statement Example&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">83</strong><code class="language-python">    print(&quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">84</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">85</strong><code class="language-python">    sql = &quot;INSERT INTO users (name, email, age) VALUES (&#x27;Alice&#x27;, &#x27;alice@example.com&#x27;, 25)&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">86</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">87</strong><code class="language-python">    ast = parse_sql(sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">88</strong><code class="language-python">    stmt = ast[0]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">89</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">90</strong><code class="language-python">    print(f&quot;Statement type: {type(stmt).__name__}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">91</strong><code class="language-python">    print(f&quot;Table: {stmt.table.parts}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">92</strong><code class="language-python">    print(f&quot;Columns: {stmt.columns}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">93</strong><code class="language-python">    print(f&quot;Number of rows: {len(stmt.values.rows) if stmt.values else 0}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">94</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">95</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">96</strong><code class="language-python">def example_update():</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">97</strong><code class="language-python">    &quot;&quot;&quot;Parse an UPDATE statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">98</strong><code class="language-python">    print(&quot;\n&quot; + &quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">99</strong><code class="language-python">    print(&quot;UPDATE Statement Example&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">100</strong><code class="language-python">    print(&quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">101</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">102</strong><code class="language-python">    sql = &quot;UPDATE users SET age = age + 1, updated_at = CURRENT_TIMESTAMP WHERE id = 42&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">103</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">104</strong><code class="language-python">    ast = parse_sql(sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">105</strong><code class="language-python">    stmt = ast[0]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">106</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">107</strong><code class="language-python">    print(f&quot;Statement type: {type(stmt).__name__}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">108</strong><code class="language-python">    print(f&quot;Table: {stmt.table.parts}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">109</strong><code class="language-python">    print(f&quot;Number of assignments: {len(stmt.assignments)}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">110</strong><code class="language-python">    print(f&quot;Has WHERE clause: {stmt.where is not None}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">111</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">112</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">113</strong><code class="language-python">def example_delete():</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">114</strong><code class="language-python">    &quot;&quot;&quot;Parse a DELETE statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">115</strong><code class="language-python">    print(&quot;\n&quot; + &quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">116</strong><code class="language-python">    print(&quot;DELETE Statement Example&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">117</strong><code class="language-python">    print(&quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">118</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">119</strong><code class="language-python">    sql = &quot;DELETE FROM users WHERE created_at &lt; date(&#x27;now&#x27;, &#x27;-1 year&#x27;)&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">120</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">121</strong><code class="language-python">    ast = parse_sql(sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">122</strong><code class="language-python">    stmt = ast[0]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">123</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">124</strong><code class="language-python">    print(f&quot;Statement type: {type(stmt).__name__}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">125</strong><code class="language-python">    print(f&quot;Table: {stmt.table.parts}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">126</strong><code class="language-python">    print(f&quot;Has WHERE clause: {stmt.where is not None}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">127</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">128</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">129</strong><code class="language-python">def example_create_table():</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">130</strong><code class="language-python">    &quot;&quot;&quot;Parse a CREATE TABLE statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">131</strong><code class="language-python">    print(&quot;\n&quot; + &quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">132</strong><code class="language-python">    print(&quot;CREATE TABLE Statement Example&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">133</strong><code class="language-python">    print(&quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">134</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">135</strong><code class="language-python">    sql = &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">136</strong><code class="language-python">    CREATE TABLE IF NOT EXISTS products (</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">137</strong><code class="language-python">        id INTEGER PRIMARY KEY AUTOINCREMENT,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">138</strong><code class="language-python">        name TEXT NOT NULL,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">139</strong><code class="language-python">        price REAL CHECK(price &gt; 0),</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">140</strong><code class="language-python">        created_at TEXT DEFAULT CURRENT_TIMESTAMP,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">141</strong><code class="language-python">        UNIQUE(name)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">142</strong><code class="language-python">    )</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">143</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">144</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">145</strong><code class="language-python">    ast = parse_sql(sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">146</strong><code class="language-python">    stmt = ast[0]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">147</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">148</strong><code class="language-python">    print(f&quot;Statement type: {type(stmt).__name__}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">149</strong><code class="language-python">    print(f&quot;Table: {stmt.table_name.parts}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">150</strong><code class="language-python">    print(f&quot;IF NOT EXISTS: {stmt.if_not_exists}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">151</strong><code class="language-python">    print(f&quot;Number of columns: {len(stmt.columns)}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">152</strong><code class="language-python">    print(f&quot;Number of table constraints: {len(stmt.constraints)}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">153</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">154</strong><code class="language-python">    for col in stmt.columns:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">155</strong><code class="language-python">        print(f&quot;  Column: {col.name} {col.type_name or &#x27;(no type)&#x27;}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">156</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">157</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Common Table Expressions (CTEs)</h2>
+<p>WITH clauses (CTEs) allow <strong>defining temporary named result sets</strong> that can be referenced
+in the main query. They're especially powerful with the RECURSIVE keyword for hierarchical
+or iterative queries.</p>
+<h3>Recursive CTE Pattern</h3>
+<ol>
+<li><strong>Anchor member</strong>: Initial SELECT (e.g., <code>SELECT 1</code>)</li>
+<li><strong>UNION ALL</strong>: Combines anchor with recursive member</li>
+<li><strong>Recursive member</strong>: SELECT that references the CTE itself</li>
+<li><strong>Termination</strong>: WHERE clause stops recursion</li>
+</ol>
+<p>The AST provides:
+- <code>with_clause.recursive</code>: Boolean indicating if RECURSIVE keyword present
+- <code>with_clause.ctes</code>: List of CTE definitions
+- Each CTE has <code>name</code>, optional <code>columns</code>, and <code>select</code> query</p></div><pre class="source language-python"><strong class="lineNumber">175</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">176</strong><code class="language-python">def example_with_cte():</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">177</strong><code class="language-python">    &quot;&quot;&quot;Parse a WITH clause (CTE)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">178</strong><code class="language-python">    print(&quot;\n&quot; + &quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">179</strong><code class="language-python">    print(&quot;WITH Clause (CTE) Example&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">180</strong><code class="language-python">    print(&quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">181</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">182</strong><code class="language-python">    sql = &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">183</strong><code class="language-python">    WITH RECURSIVE cnt(x) AS (</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">184</strong><code class="language-python">        SELECT 1</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">185</strong><code class="language-python">        UNION ALL</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">186</strong><code class="language-python">        SELECT x+1 FROM cnt WHERE x &lt; 10</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">187</strong><code class="language-python">    )</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">188</strong><code class="language-python">    SELECT x FROM cnt</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">189</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">190</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">191</strong><code class="language-python">    ast = parse_sql(sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">192</strong><code class="language-python">    stmt = ast[0]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">193</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">194</strong><code class="language-python">    print(f&quot;Statement type: {type(stmt).__name__}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">195</strong><code class="language-python">    print(f&quot;Has WITH clause: {stmt.with_clause is not None}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">196</strong><code class="language-python">    print(f&quot;Recursive: {stmt.with_clause.recursive}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">197</strong><code class="language-python">    print(f&quot;Number of CTEs: {len(stmt.with_clause.ctes)}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">198</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">199</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">200</strong><code class="language-python">def example_compound_select():</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">201</strong><code class="language-python">    &quot;&quot;&quot;Parse a compound SELECT with UNION&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">202</strong><code class="language-python">    print(&quot;\n&quot; + &quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">203</strong><code class="language-python">    print(&quot;Compound SELECT (UNION) Example&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">204</strong><code class="language-python">    print(&quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">205</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">206</strong><code class="language-python">    sql = &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">207</strong><code class="language-python">    SELECT name FROM employees</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">208</strong><code class="language-python">    UNION</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">209</strong><code class="language-python">    SELECT name FROM contractors</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">210</strong><code class="language-python">    ORDER BY name</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">211</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">212</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">213</strong><code class="language-python">    ast = parse_sql(sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">214</strong><code class="language-python">    stmt = ast[0]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">215</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">216</strong><code class="language-python">    print(f&quot;Statement type: {type(stmt).__name__}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">217</strong><code class="language-python">    print(f&quot;Number of compound parts: {len(stmt.compound_selects)}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">218</strong><code class="language-python">    if stmt.compound_selects:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">219</strong><code class="language-python">        print(f&quot;Compound operator: {stmt.compound_selects[0][0].value}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">220</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">221</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">222</strong><code class="language-python">def example_transactions():</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">223</strong><code class="language-python">    &quot;&quot;&quot;Parse transaction control statements&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">224</strong><code class="language-python">    print(&quot;\n&quot; + &quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">225</strong><code class="language-python">    print(&quot;Transaction Control Example&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">226</strong><code class="language-python">    print(&quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">227</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">228</strong><code class="language-python">    sqls = [</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">229</strong><code class="language-python">        &quot;BEGIN TRANSACTION&quot;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">230</strong><code class="language-python">        &quot;SAVEPOINT sp1&quot;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">231</strong><code class="language-python">        &quot;UPDATE users SET balance = balance - 100 WHERE id = 1&quot;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">232</strong><code class="language-python">        &quot;UPDATE users SET balance = balance + 100 WHERE id = 2&quot;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">233</strong><code class="language-python">        &quot;RELEASE SAVEPOINT sp1&quot;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">234</strong><code class="language-python">        &quot;COMMIT&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">235</strong><code class="language-python">    ]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">236</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">237</strong><code class="language-python">    for sql in sqls:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">238</strong><code class="language-python">        ast = parse_sql(sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">239</strong><code class="language-python">        print(f&quot;{sql:60} -&gt; {type(ast[0]).__name__}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">240</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">241</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Error Handling</h2>
+<p>The parser raises <strong>typed exceptions</strong> that provide detailed context about parsing failures.
+All parser errors inherit from <code>ParseError</code>, making them easy to catch.</p>
+<h3>Error Information</h3>
+<p>Parse errors include:
+- <strong>Message</strong>: Human-readable description of the problem
+- <strong>Position</strong>: Line and column numbers where the error occurred
+- <strong>Context</strong>: The problematic line with a caret (^) pointing to the error</p>
+<h3>Best Practices</h3>
+<ul>
+<li>Catch <code>ParseError</code> for all parser failures</li>
+<li>Display the error message to users (it includes context)</li>
+<li>Use <code>try-except</code> when parsing user-provided SQL</li>
+<li>Log errors for debugging and monitoring</li>
+</ul></div><pre class="source language-python"><strong class="lineNumber">260</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">261</strong><code class="language-python">def example_error_handling():</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">262</strong><code class="language-python">    &quot;&quot;&quot;Demonstrate error handling&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">263</strong><code class="language-python">    print(&quot;\n&quot; + &quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">264</strong><code class="language-python">    print(&quot;Error Handling Example&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">265</strong><code class="language-python">    print(&quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">266</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">267</strong><code class="language-python">    invalid_sql = &quot;SELECT FROM&quot;  # Missing column list</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">268</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">269</strong><code class="language-python">    try:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">270</strong><code class="language-python">        ast = parse_sql(invalid_sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">271</strong><code class="language-python">    except ParseError as e:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">272</strong><code class="language-python">        print(f&quot;Caught parse error:&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">273</strong><code class="language-python">        print(f&quot;  {e}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">274</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Low-Level Tokenization</h2>
+<p>The <code>tokenize_sql()</code> function provides <strong>access to tokens without building an AST</strong>.
+This is useful for:
+- Syntax highlighting
+- Building custom parsers
+- Debugging lexer issues
+- Token-based analysis (counting keywords, identifying patterns)</p>
+<p>Each token contains:
+- <code>type</code>: TokenType enum value (e.g., SELECT, IDENTIFIER, NUMBER)
+- <code>value</code>: The actual text (e.g., "SELECT", "users", "42")
+- <code>position</code>: Line and column where the token starts</p></div><pre class="source language-python"><strong class="lineNumber">288</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">289</strong><code class="language-python">def example_tokenization():</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">290</strong><code class="language-python">    &quot;&quot;&quot;Show tokenization&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">291</strong><code class="language-python">    print(&quot;\n&quot; + &quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">292</strong><code class="language-python">    print(&quot;Tokenization Example&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">293</strong><code class="language-python">    print(&quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">294</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">295</strong><code class="language-python">    sql = &quot;SELECT * FROM users WHERE age &gt; 18&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">296</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">297</strong><code class="language-python">    tokens = tokenize_sql(sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">298</strong><code class="language-python">    print(f&quot;Tokenized into {len(tokens)} tokens:\n&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">299</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">300</strong><code class="language-python">    for token in tokens[:10]:  # Show first 10 tokens</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">301</strong><code class="language-python">        print(f&quot;  {token.type.name:20} {repr(token.value):20} at {token.position}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">302</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">303</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">304</strong><code class="language-python">def example_complex_query():</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">305</strong><code class="language-python">    &quot;&quot;&quot;Parse a complex real-world query&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">306</strong><code class="language-python">    print(&quot;\n&quot; + &quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">307</strong><code class="language-python">    print(&quot;Complex Query Example&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">308</strong><code class="language-python">    print(&quot;=&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">309</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">310</strong><code class="language-python">    sql = &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">311</strong><code class="language-python">    WITH monthly_sales AS (</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">312</strong><code class="language-python">        SELECT</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">313</strong><code class="language-python">            strftime(&#x27;%Y-%m&#x27;, order_date) as month,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">314</strong><code class="language-python">            product_id,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">315</strong><code class="language-python">            SUM(quantity) as total_quantity,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">316</strong><code class="language-python">            SUM(price * quantity) as total_revenue</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">317</strong><code class="language-python">        FROM orders</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">318</strong><code class="language-python">        WHERE order_date &gt;= date(&#x27;now&#x27;, &#x27;-12 months&#x27;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">319</strong><code class="language-python">        GROUP BY month, product_id</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">320</strong><code class="language-python">    )</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">321</strong><code class="language-python">    SELECT</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">322</strong><code class="language-python">        p.name as product_name,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">323</strong><code class="language-python">        ms.month,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">324</strong><code class="language-python">        ms.total_quantity,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">325</strong><code class="language-python">        ms.total_revenue,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">326</strong><code class="language-python">        ROUND(ms.total_revenue / ms.total_quantity, 2) as avg_price,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">327</strong><code class="language-python">        LAG(ms.total_revenue) OVER (</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">328</strong><code class="language-python">            PARTITION BY ms.product_id</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">329</strong><code class="language-python">            ORDER BY ms.month</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">330</strong><code class="language-python">        ) as prev_month_revenue</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">331</strong><code class="language-python">    FROM monthly_sales ms</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">332</strong><code class="language-python">    JOIN products p ON ms.product_id = p.id</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">333</strong><code class="language-python">    WHERE ms.total_quantity &gt; 10</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">334</strong><code class="language-python">    ORDER BY ms.month DESC, ms.total_revenue DESC</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">335</strong><code class="language-python">    LIMIT 100</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">336</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">337</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">338</strong><code class="language-python">    ast = parse_sql(sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">339</strong><code class="language-python">    stmt = ast[0]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">340</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">341</strong><code class="language-python">    print(f&quot;Successfully parsed complex query!&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">342</strong><code class="language-python">    print(f&quot;  Has CTE: {stmt.with_clause is not None}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">343</strong><code class="language-python">    print(f&quot;  Number of result columns: {len(stmt.select_core.columns)}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">344</strong><code class="language-python">    print(f&quot;  Has window functions: (check for OVER clauses)&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">345</strong><code class="language-python">    print(f&quot;  Has joins: (check FROM clause)&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">346</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">347</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">348</strong><code class="language-python">def main():</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">349</strong><code class="language-python">    &quot;&quot;&quot;Run all examples&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">350</strong><code class="language-python">    print(&quot;\n&quot; + &quot;#&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">351</strong><code class="language-python">    print(&quot;# SQLite SQL Parser - Usage Examples&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">352</strong><code class="language-python">    print(&quot;#&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">353</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">354</strong><code class="language-python">    example_select()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">355</strong><code class="language-python">    example_insert()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">356</strong><code class="language-python">    example_update()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">357</strong><code class="language-python">    example_delete()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">358</strong><code class="language-python">    example_create_table()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">359</strong><code class="language-python">    example_with_cte()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">360</strong><code class="language-python">    example_compound_select()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">361</strong><code class="language-python">    example_transactions()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">362</strong><code class="language-python">    example_complex_query()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">363</strong><code class="language-python">    example_tokenization()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">364</strong><code class="language-python">    example_error_handling()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">365</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">366</strong><code class="language-python">    print(&quot;\n&quot; + &quot;#&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">367</strong><code class="language-python">    print(&quot;# All examples completed successfully!&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">368</strong><code class="language-python">    print(&quot;#&quot; * 60)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">369</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">370</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">371</strong><code class="language-python">if __name__ == &quot;__main__&quot;:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">372</strong><code class="language-python">    main()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">373</strong><code class="language-python"></code></pre></div>
+    </main>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+
+</html>

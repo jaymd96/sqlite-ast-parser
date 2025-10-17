@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>sqlite_parser/__init__.py annotated source</title>
+    <link rel="stylesheet" href="../main.css">
+</head>
+
+<body>
+    <main>
+        <div class="line">
+            <div class="doc">
+                <h1>sqlite_parser/__init__.py <span class="fade">annotated source</span></h1>
+                <em><a class="back" href="../">Back to index</a></em>
+            </div>
+            <pre></pre>
+        </div>
+        <div class="line"><div class="doc"><h1>Public API Module</h1>
+<p>This module defines the <strong>public interface</strong> for the sqlite-ast-parser package.
+It exports the main entry points and key classes that users need to interact with the parser.</p>
+<h2>Primary Functions</h2>
+<p>The parser provides two main entry points:</p>
+<ol>
+<li>
+<p><strong><code>parse_sql(sql: str) -&gt; List[Statement]</code></strong>: The main parsing function that takes SQL
+text and returns a list of AST statement nodes. This is what most users will call.</p>
+</li>
+<li>
+<p><strong><code>tokenize_sql(sql: str) -&gt; List[Token]</code></strong>: Lower-level function that performs only
+tokenization, returning a list of tokens without building an AST. Useful for debugging
+or building custom parsers.</p>
+</li>
+</ol>
+<h2>Usage Pattern</h2>
+<p>```python
+from sqlite_parser import parse_sql</p>
+<p>sql = "SELECT id, name FROM users WHERE age &gt; 18"
+statements = parse_sql(sql)</p>
+<p>for stmt in statements:</p>
+<h1>stmt is a SelectStatement node</h1>
+<p>print(stmt.select_core.from_clause)
+```</p>
+<h2>What's Exported</h2>
+<ul>
+<li><strong>Main API</strong>: <code>parse_sql</code>, <code>tokenize_sql</code></li>
+<li><strong>Core Classes</strong>: <code>Lexer</code>, <code>Token</code> (for advanced usage)</li>
+<li><strong>All AST Nodes</strong>: Every statement and expression node type (via <code>*</code> import)</li>
+<li><strong>Error Classes</strong>: For exception handling</li>
+<li><strong>Version</strong>: Package version string</li>
+</ul></div><pre class="source language-python"><strong class="lineNumber">37</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">38</strong><code class="language-python">&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">39</strong><code class="language-python">SQLite SQL Parser</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">40</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">41</strong><code class="language-python">A complete, production-ready SQLite SQL parser that returns detailed Abstract Syntax Trees (AST).</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">42</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">43</strong><code class="language-python">Example usage:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">44</strong><code class="language-python">    from sqlite_parser import parse_sql</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">45</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">46</strong><code class="language-python">    sql = &quot;SELECT id, name FROM users WHERE age &gt; 18&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">47</strong><code class="language-python">    ast = parse_sql(sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">48</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">49</strong><code class="language-python">    for statement in ast:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">50</strong><code class="language-python">        print(statement)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">51</strong><code class="language-python">&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">52</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">53</strong><code class="language-python">from .parser import parse_sql, tokenize_sql</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">54</strong><code class="language-python">from .lexer import Lexer, Token</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">55</strong><code class="language-python">from .ast_nodes import *</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">56</strong><code class="language-python">from .errors import (</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">57</strong><code class="language-python">    ParseError,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">58</strong><code class="language-python">    LexerError,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">59</strong><code class="language-python">    SyntaxError,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">60</strong><code class="language-python">    UnexpectedTokenError,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">61</strong><code class="language-python">    UnexpectedEOFError</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">62</strong><code class="language-python">)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">63</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">64</strong><code class="language-python">__version__ = &quot;0.1.0&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">65</strong><code class="language-python">__all__ = [</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">66</strong><code class="language-python">    # Main API</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">67</strong><code class="language-python">    &quot;parse_sql&quot;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">68</strong><code class="language-python">    &quot;tokenize_sql&quot;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">69</strong><code class="language-python">    # Core classes</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">70</strong><code class="language-python">    &quot;Lexer&quot;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">71</strong><code class="language-python">    &quot;Token&quot;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">72</strong><code class="language-python">    # Errors</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">73</strong><code class="language-python">    &quot;ParseError&quot;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">74</strong><code class="language-python">    &quot;LexerError&quot;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">75</strong><code class="language-python">    &quot;SyntaxError&quot;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">76</strong><code class="language-python">    &quot;UnexpectedTokenError&quot;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">77</strong><code class="language-python">    &quot;UnexpectedEOFError&quot;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">78</strong><code class="language-python">    # All AST nodes are exported via *</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">79</strong><code class="language-python">]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">80</strong><code class="language-python"></code></pre></div>
+    </main>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+
+</html>

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>sqlite_parser/debug.py annotated source</title>
+    <link rel="stylesheet" href="../main.css">
+</head>
+
+<body>
+    <main>
+        <div class="line">
+            <div class="doc">
+                <h1>sqlite_parser/debug.py <span class="fade">annotated source</span></h1>
+                <em><a class="back" href="../">Back to index</a></em>
+            </div>
+            <pre></pre>
+        </div>
+        <div class="line"><div class="doc"><h1>Debugging Utilities</h1>
+<p>This module provides <strong>comprehensive debugging tools</strong> for inspecting parser internals.
+These utilities are invaluable when developing new parser features or diagnosing issues.</p>
+<h2>Debugging Capabilities</h2>
+<ol>
+<li><strong>Token Stream Visualization</strong>: Pretty-print tokens with optional highlighting</li>
+<li><strong>AST Formatting</strong>: Hierarchical display of AST node trees</li>
+<li><strong>Parser Tracing</strong>: Log parser method calls and decisions</li>
+<li><strong>State Inspection</strong>: View parser state at any point</li>
+<li><strong>Context Managers</strong>: Temporarily enable debugging</li>
+<li><strong>High-Level Debug Parse</strong>: One-function debugging workflow</li>
+</ol>
+<h2>Usage Patterns</h2>
+<h3>Quick Debugging</h3>
+<p>```python
+from sqlite_parser.debug import debug_parse</p>
+<h1>Parse with full tracing</h1>
+<p>statements = debug_parse("SELECT * FROM users", verbose=True)
+```</p>
+<h3>Detailed Token Inspection</h3>
+<p>```python
+from sqlite_parser import tokenize_sql
+from sqlite_parser.debug import print_tokens</p>
+<p>tokens = tokenize_sql("SELECT id FROM users")
+print_tokens(tokens, highlight_pos=2)  # Highlight token at position 2
+```</p>
+<h3>AST Inspection</h3>
+<p>```python
+from sqlite_parser import parse_sql
+from sqlite_parser.debug import print_ast</p>
+<p>ast = parse_sql("SELECT * FROM users")
+print_ast(ast)  # Pretty-print entire AST tree
+```</p>
+<h3>Parser State Tracking</h3>
+<p>```python
+from sqlite_parser.debug import parser_debug_context</p>
+<p>with parser_debug_context(parser):
+result = parser.parse()
+state = parser.get_state()
+print_state(state)
+```</p></div><pre class="source language-python"><strong class="lineNumber">56</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">57</strong><code class="language-python">&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">58</strong><code class="language-python">Debug utilities for SQLite parser</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">59</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">60</strong><code class="language-python">Provides formatting and inspection tools for debugging the parser,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">61</strong><code class="language-python">including token stream visualization, AST formatting, and parser tracing.</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">62</strong><code class="language-python">&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">63</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">64</strong><code class="language-python">from typing import List, Any</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">65</strong><code class="language-python">from contextlib import contextmanager</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">66</strong><code class="language-python">from .lexer import Token</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">67</strong><code class="language-python">from .ast_nodes import ASTNode</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">68</strong><code class="language-python">from .parser import Parser</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">69</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Token Stream Formatter</h2>
+<p><code>format_token_stream()</code> creates a <strong>tabular display</strong> of all tokens with their types
+and values. This is crucial for understanding how the lexer tokenized the input.</p>
+<h3>Features</h3>
+<ul>
+<li><strong>Indexed</strong>: Each token shows its position in the stream</li>
+<li><strong>Type Display</strong>: Token type name (SELECT, IDENTIFIER, NUMBER, etc.)</li>
+<li><strong>Value Display</strong>: The actual text value</li>
+<li><strong>Highlighting</strong>: Optional <code>&gt;&gt;&gt;</code> marker for a specific token position</li>
+</ul>
+<h3>Output Example</h3>
+<h1>```</h1>
+<h1>Token Stream</h1>
+<p>[  0] SELECT          'SELECT'</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>[  1] STAR            '*'
+[  2] FROM            'FROM'
+[  3] IDENTIFIER      'users'
+======================================================================
+```</p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p>The highlighting helps visualize parser position during debugging.</p></div><pre class="source language-python"><strong class="lineNumber">96</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">97</strong><code class="language-python">def format_token_stream(tokens: List[Token], highlight_pos: int = None) -&gt; str:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">98</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">99</strong><code class="language-python">    Format token stream for pretty printing</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">100</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">101</strong><code class="language-python">    Args:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">102</strong><code class="language-python">        tokens: List of tokens to format</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">103</strong><code class="language-python">        highlight_pos: Optional position to highlight</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">104</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">105</strong><code class="language-python">    Returns:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">106</strong><code class="language-python">        Formatted string representation</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">107</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">108</strong><code class="language-python">    lines = []</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">109</strong><code class="language-python">    lines.append(&quot;=&quot; * 70)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">110</strong><code class="language-python">    lines.append(&quot;Token Stream&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">111</strong><code class="language-python">    lines.append(&quot;=&quot; * 70)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">112</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">113</strong><code class="language-python">    for i, token in enumerate(tokens):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">114</strong><code class="language-python">        marker = &quot;&gt;&gt;&gt;&quot; if i == highlight_pos else &quot;   &quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">115</strong><code class="language-python">        type_str = f&quot;{token.type.name:15}&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">116</strong><code class="language-python">        value_str = f&quot;{repr(token.value):20}&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">117</strong><code class="language-python">        lines.append(f&quot;{marker} [{i:3d}] {type_str} {value_str}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">118</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">119</strong><code class="language-python">    lines.append(&quot;=&quot; * 70)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">120</strong><code class="language-python">    return &quot;\n&quot;.join(lines)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">121</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>AST Tree Formatter</h2>
+<p><code>format_ast()</code> recursively formats <strong>AST node trees</strong> with proper indentation to show
+the hierarchical structure. This is essential for understanding what the parser built.</p>
+<h3>Formatting Rules</h3>
+<ul>
+<li><strong>Nodes</strong>: Show type name and attributes (excluding span for clarity)</li>
+<li><strong>Lists</strong>: Format as <code>[...]</code> with indented items</li>
+<li><strong>Primitives</strong>: Show with <code>repr()</code> for clarity (strings show quotes)</li>
+<li><strong>None</strong>: Displayed explicitly</li>
+<li><strong>Nesting</strong>: Each level indents 2 spaces</li>
+</ul>
+<h3>Example Output</h3>
+<p><code>SelectStatement(
+select_core=
+SelectCore(
+columns=
+[
+ResultColumn(
+expression=
+Identifier(
+name='id'
+)
+)
+]
+from_clause=
+FromClause(
+source=
+TableReference(
+name=QualifiedIdentifier(
+parts=['users']
+)
+)
+)
+)
+)</code></p>
+<p>This visualization makes it easy to verify the parser built the correct structure.</p></div><pre class="source language-python"><strong class="lineNumber">164</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">165</strong><code class="language-python">def format_ast(node: Any, indent: int = 0) -&gt; str:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">166</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">167</strong><code class="language-python">    Format AST node tree for pretty printing</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">168</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">169</strong><code class="language-python">    Args:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">170</strong><code class="language-python">        node: AST node to format</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">171</strong><code class="language-python">        indent: Current indentation level</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">172</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">173</strong><code class="language-python">    Returns:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">174</strong><code class="language-python">        Formatted string representation</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">175</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">176</strong><code class="language-python">    if node is None:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">177</strong><code class="language-python">        return &quot; &quot; * indent + &quot;None&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">178</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">179</strong><code class="language-python">    if isinstance(node, list):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">180</strong><code class="language-python">        if not node:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">181</strong><code class="language-python">            return &quot; &quot; * indent + &quot;[]&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">182</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">183</strong><code class="language-python">        lines = [&quot; &quot; * indent + &quot;[&quot;]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">184</strong><code class="language-python">        for item in node:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">185</strong><code class="language-python">            lines.append(format_ast(item, indent + 2))</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">186</strong><code class="language-python">        lines.append(&quot; &quot; * indent + &quot;]&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">187</strong><code class="language-python">        return &quot;\n&quot;.join(lines)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">188</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">189</strong><code class="language-python">    if not isinstance(node, ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">190</strong><code class="language-python">        return &quot; &quot; * indent + repr(node)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">191</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">192</strong><code class="language-python">    # Format AST node</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">193</strong><code class="language-python">    node_type = type(node).__name__</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">194</strong><code class="language-python">    lines = [&quot; &quot; * indent + f&quot;{node_type}(&quot;]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">195</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">196</strong><code class="language-python">    # Get node attributes (excluding span)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">197</strong><code class="language-python">    attrs = {}</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">198</strong><code class="language-python">    for key, value in node.__dict__.items():</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">199</strong><code class="language-python">        if key != &#x27;span&#x27; and value is not None:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">200</strong><code class="language-python">            attrs[key] = value</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">201</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">202</strong><code class="language-python">    for key, value in attrs.items():</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">203</strong><code class="language-python">        if isinstance(value, (list, ASTNode)):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">204</strong><code class="language-python">            lines.append(&quot; &quot; * (indent + 2) + f&quot;{key}=&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">205</strong><code class="language-python">            lines.append(format_ast(value, indent + 4))</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">206</strong><code class="language-python">        else:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">207</strong><code class="language-python">            lines.append(&quot; &quot; * (indent + 2) + f&quot;{key}={repr(value)}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">208</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">209</strong><code class="language-python">    lines.append(&quot; &quot; * indent + &quot;)&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">210</strong><code class="language-python">    return &quot;\n&quot;.join(lines)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">211</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">212</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">213</strong><code class="language-python">def format_parser_trace(trace_log: List[str]) -&gt; str:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">214</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">215</strong><code class="language-python">    Format parser trace log for pretty printing</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">216</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">217</strong><code class="language-python">    Args:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">218</strong><code class="language-python">        trace_log: List of trace messages</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">219</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">220</strong><code class="language-python">    Returns:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">221</strong><code class="language-python">        Formatted string representation</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">222</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">223</strong><code class="language-python">    lines = []</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">224</strong><code class="language-python">    lines.append(&quot;=&quot; * 70)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">225</strong><code class="language-python">    lines.append(&quot;Parser Trace&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">226</strong><code class="language-python">    lines.append(&quot;=&quot; * 70)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">227</strong><code class="language-python">    lines.extend(trace_log)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">228</strong><code class="language-python">    lines.append(&quot;=&quot; * 70)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">229</strong><code class="language-python">    return &quot;\n&quot;.join(lines)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">230</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">231</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">232</strong><code class="language-python">def format_parser_state(state: dict) -&gt; str:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">233</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">234</strong><code class="language-python">    Format parser state dictionary for pretty printing</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">235</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">236</strong><code class="language-python">    Args:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">237</strong><code class="language-python">        state: State dictionary from parser.get_state()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">238</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">239</strong><code class="language-python">    Returns:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">240</strong><code class="language-python">        Formatted string representation</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">241</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">242</strong><code class="language-python">    lines = []</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">243</strong><code class="language-python">    lines.append(&quot;Parser State:&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">244</strong><code class="language-python">    lines.append(f&quot;  Position:      {state[&#x27;pos&#x27;]}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">245</strong><code class="language-python">    lines.append(f&quot;  Current Token: {state[&#x27;token_type&#x27;]}:{repr(state[&#x27;token_value&#x27;])}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">246</strong><code class="language-python">    lines.append(f&quot;  Depth:         {state[&#x27;depth&#x27;]}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">247</strong><code class="language-python">    lines.append(f&quot;  Active Method: {state[&#x27;active_method&#x27;]}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">248</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">249</strong><code class="language-python">    if state[&#x27;stack&#x27;]:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">250</strong><code class="language-python">        lines.append(f&quot;  Call Stack:&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">251</strong><code class="language-python">        for i, method in enumerate(state[&#x27;stack&#x27;]):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">252</strong><code class="language-python">            lines.append(f&quot;    {i}. {method}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">253</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">254</strong><code class="language-python">    return &quot;\n&quot;.join(lines)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">255</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">256</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">257</strong><code class="language-python">@contextmanager</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">258</strong><code class="language-python">def parser_debug_context(parser: Parser, enable: bool = True):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">259</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">260</strong><code class="language-python">    Context manager for temporarily enabling parser debug mode</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">261</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">262</strong><code class="language-python">    Args:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">263</strong><code class="language-python">        parser: Parser instance</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">264</strong><code class="language-python">        enable: Whether to enable debug mode</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">265</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">266</strong><code class="language-python">    Yields:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">267</strong><code class="language-python">        Parser with debug enabled</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">268</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">269</strong><code class="language-python">    Example:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">270</strong><code class="language-python">        with parser_debug_context(parser):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">271</strong><code class="language-python">            result = parser.parse()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">272</strong><code class="language-python">            parser.print_trace()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">273</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">274</strong><code class="language-python">    old_debug = parser.debug</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">275</strong><code class="language-python">    parser.debug = enable</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">276</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">277</strong><code class="language-python">    try:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">278</strong><code class="language-python">        yield parser</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">279</strong><code class="language-python">    finally:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">280</strong><code class="language-python">        parser.debug = old_debug</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">281</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">282</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">283</strong><code class="language-python">def print_tokens(tokens: List[Token], highlight_pos: int = None):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">284</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">285</strong><code class="language-python">    Print token stream to stdout</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">286</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">287</strong><code class="language-python">    Args:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">288</strong><code class="language-python">        tokens: List of tokens</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">289</strong><code class="language-python">        highlight_pos: Optional position to highlight</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">290</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">291</strong><code class="language-python">    print(format_token_stream(tokens, highlight_pos))</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">292</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">293</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">294</strong><code class="language-python">def print_ast(node: Any):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">295</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">296</strong><code class="language-python">    Print AST tree to stdout</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">297</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">298</strong><code class="language-python">    Args:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">299</strong><code class="language-python">        node: AST node or list of nodes</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">300</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">301</strong><code class="language-python">    print(&quot;=&quot; * 70)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">302</strong><code class="language-python">    print(&quot;AST&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">303</strong><code class="language-python">    print(&quot;=&quot; * 70)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">304</strong><code class="language-python">    print(format_ast(node))</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">305</strong><code class="language-python">    print(&quot;=&quot; * 70)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">306</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">307</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">308</strong><code class="language-python">def print_state(state: dict):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">309</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">310</strong><code class="language-python">    Print parser state to stdout</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">311</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">312</strong><code class="language-python">    Args:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">313</strong><code class="language-python">        state: State dictionary from parser.get_state()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">314</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">315</strong><code class="language-python">    print(format_parser_state(state))</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">316</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>One-Function Debugging</h2>
+<p><code>debug_parse()</code> is the <strong>fastest way to debug</strong> parser issues. It performs the complete
+parse workflow with optional verbose output showing every step.</p>
+<h3>What It Does</h3>
+<ol>
+<li><strong>Lexes</strong> the SQL into tokens</li>
+<li><strong>Prints</strong> token stream (if verbose)</li>
+<li><strong>Parses</strong> with debug tracing enabled</li>
+<li><strong>Prints</strong> parser trace log (if verbose)</li>
+<li><strong>Prints</strong> final AST (if verbose)</li>
+<li><strong>Returns</strong> parsed statements</li>
+</ol>
+<h3>Usage</h3>
+<p>```python</p>
+<h1>Quick parse with no output</h1>
+<p>statements = debug_parse("SELECT * FROM users")</p>
+<h1>Full debugging output</h1>
+<p>statements = debug_parse("SELECT * FROM users", verbose=True)
+```</p>
+<h3>Verbose Output Includes</h3>
+<ul>
+<li>Token stream with indices and types</li>
+<li>Parser trace showing method calls and token consumption</li>
+<li>Final AST tree structure</li>
+</ul>
+<p>This is perfect for troubleshooting: paste in problematic SQL, set <code>verbose=True</code>,
+and see exactly what the parser is doing at each step.</p></div><pre class="source language-python"><strong class="lineNumber">349</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">350</strong><code class="language-python">def debug_parse(sql: str, verbose: bool = False) -&gt; List[ASTNode]:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">351</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">352</strong><code class="language-python">    Parse SQL with debug tracing enabled</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">353</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">354</strong><code class="language-python">    Args:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">355</strong><code class="language-python">        sql: SQL string to parse</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">356</strong><code class="language-python">        verbose: If True, print trace after parsing</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">357</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">358</strong><code class="language-python">    Returns:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">359</strong><code class="language-python">        List of parsed statements</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">360</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">361</strong><code class="language-python">    Example:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">362</strong><code class="language-python">        statements = debug_parse(&quot;SELECT * FROM users&quot;, verbose=True)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">363</strong><code class="language-python">    &quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">364</strong><code class="language-python">    from .lexer import Lexer</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">365</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">366</strong><code class="language-python">    lexer = Lexer(sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">367</strong><code class="language-python">    tokens = lexer.tokenize()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">368</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">369</strong><code class="language-python">    if verbose:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">370</strong><code class="language-python">        print_tokens(tokens)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">371</strong><code class="language-python">        print()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">372</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">373</strong><code class="language-python">    parser = Parser(tokens, debug=True)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">374</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">375</strong><code class="language-python">    try:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">376</strong><code class="language-python">        result = parser.parse()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">377</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">378</strong><code class="language-python">        if verbose:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">379</strong><code class="language-python">            print(format_parser_trace(parser.get_trace_log()))</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">380</strong><code class="language-python">            print()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">381</strong><code class="language-python">            print_ast(result)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">382</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">383</strong><code class="language-python">        return result</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">384</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">385</strong><code class="language-python">    except Exception as e:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">386</strong><code class="language-python">        if verbose:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">387</strong><code class="language-python">            print(format_parser_trace(parser.get_trace_log()))</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">388</strong><code class="language-python">            print()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">389</strong><code class="language-python">            print(f&quot;Error: {e}&quot;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">390</strong><code class="language-python">        raise</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">391</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">392</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">393</strong><code class="language-python"># Export main functions</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">394</strong><code class="language-python">__all__ = [</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">395</strong><code class="language-python">    &#x27;format_token_stream&#x27;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">396</strong><code class="language-python">    &#x27;format_ast&#x27;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">397</strong><code class="language-python">    &#x27;format_parser_trace&#x27;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">398</strong><code class="language-python">    &#x27;format_parser_state&#x27;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">399</strong><code class="language-python">    &#x27;parser_debug_context&#x27;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">400</strong><code class="language-python">    &#x27;print_tokens&#x27;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">401</strong><code class="language-python">    &#x27;print_ast&#x27;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">402</strong><code class="language-python">    &#x27;print_state&#x27;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">403</strong><code class="language-python">    &#x27;debug_parse&#x27;,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">404</strong><code class="language-python">]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">405</strong><code class="language-python"></code></pre></div>
+    </main>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+
+</html>

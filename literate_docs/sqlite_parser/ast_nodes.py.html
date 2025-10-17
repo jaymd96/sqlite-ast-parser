@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>sqlite_parser/ast_nodes.py annotated source</title>
+    <link rel="stylesheet" href="../main.css">
+</head>
+
+<body>
+    <main>
+        <div class="line">
+            <div class="doc">
+                <h1>sqlite_parser/ast_nodes.py <span class="fade">annotated source</span></h1>
+                <em><a class="back" href="../">Back to index</a></em>
+            </div>
+            <pre></pre>
+        </div>
+        <div class="line"><div class="doc"><h1>AST Node Definitions</h1>
+<p>This module defines the <strong>complete Abstract Syntax Tree (AST) schema</strong> for SQLite SQL.
+With 80+ node types, it represents every SQL construct that SQLite supports.</p>
+<h2>Design Philosophy</h2>
+<p>The AST design follows these principles:</p>
+<ol>
+<li><strong>Type Safety</strong>: Using Python dataclasses with type hints ensures correctness</li>
+<li><strong>Completeness</strong>: Every SQL construct has a dedicated node type</li>
+<li><strong>Position Tracking</strong>: All nodes include source span information for error reporting</li>
+<li><strong>Hierarchy</strong>: Clear inheritance from base classes (Statement, Expression, Clause)</li>
+<li><strong>Immutability</strong>: Dataclasses encourage treating AST as immutable data</li>
+</ol>
+<h2>Node Categories</h2>
+<p>The AST is organized into logical sections:</p>
+<ul>
+<li><strong>Position &amp; Base Classes</strong>: Foundation for all nodes</li>
+<li><strong>Enums</strong>: Type-safe representations of SQL keywords and options</li>
+<li><strong>Literals</strong>: Numbers, strings, blobs, NULL, booleans, timestamps</li>
+<li><strong>Identifiers</strong>: Simple and qualified names, parameters</li>
+<li><strong>Expressions</strong>: Operators, function calls, CASE, CAST, etc.</li>
+<li><strong>Clauses</strong>: WHERE, ORDER BY, GROUP BY, LIMIT, etc.</li>
+<li><strong>Statements</strong>: SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, etc.</li>
+</ul>
+<h2>Usage Pattern</h2>
+<p>When the parser encounters SQL like <code>SELECT id FROM users WHERE age &gt; 18</code>, it builds:</p>
+<p><code>python
+SelectStatement(
+select_core=SelectCore(
+columns=[ResultColumn(Identifier("id"))],
+from_clause=FromClause(TableReference(QualifiedIdentifier(["users"]))),
+where=WhereClause(BinaryExpression("&gt;", Identifier("age"), NumberLiteral(18)))
+)
+)</code></p></div><pre class="source language-python"><strong class="lineNumber">41</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">42</strong><code class="language-python">&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">43</strong><code class="language-python">AST Node Definitions for SQLite SQL Parser</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">44</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">45</strong><code class="language-python">This module defines all Abstract Syntax Tree node types for representing</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">46</strong><code class="language-python">SQLite SQL statements, expressions, clauses, and definitions.</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">47</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">48</strong><code class="language-python">Each node includes position information for error reporting and debugging.</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">49</strong><code class="language-python">&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">50</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">51</strong><code class="language-python">from dataclasses import dataclass, field</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">52</strong><code class="language-python">from typing import Optional, List, Any, Union</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">53</strong><code class="language-python">from enum import Enum, auto</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">54</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Position Tracking</h2>
+<p>Every AST node can optionally include a <code>Span</code> that records its <strong>exact location</strong>
+in the source code. This enables precise error messages and syntax highlighting.</p>
+<h3>Position</h3>
+<p>A <code>Position</code> represents a single point in the source:
+- <code>line</code>: 1-based line number
+- <code>column</code>: 1-based column number
+- <code>offset</code>: 0-based character offset from start</p>
+<h3>Span</h3>
+<p>A <code>Span</code> represents a range using start and end positions, tracking the full
+extent of each syntax element.</p></div><pre class="source language-python"><strong class="lineNumber">71</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">72</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">73</strong><code class="language-python"># Position and Base Classes</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">74</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">75</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">76</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">77</strong><code class="language-python">class Position:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">78</strong><code class="language-python">    &quot;&quot;&quot;Position in source code&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">79</strong><code class="language-python">    line: int</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">80</strong><code class="language-python">    column: int</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">81</strong><code class="language-python">    offset: int  # character offset from start</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">82</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">83</strong><code class="language-python">    def __str__(self) -&gt; str:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">84</strong><code class="language-python">        return f&quot;{self.line}:{self.column}&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">85</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">86</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">87</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">88</strong><code class="language-python">class Span:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">89</strong><code class="language-python">    &quot;&quot;&quot;Source code span&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">90</strong><code class="language-python">    start: Position</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">91</strong><code class="language-python">    end: Position</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">92</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">93</strong><code class="language-python">    def __str__(self) -&gt; str:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">94</strong><code class="language-python">        return f&quot;{self.start}-{self.end}&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">95</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">96</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Base AST Classes</h2>
+<p>These four classes form the <strong>foundation</strong> of the AST hierarchy:</p>
+<h3>ASTNode</h3>
+<p>The root of all AST nodes. Every node optionally tracks its source <code>span</code> for
+position-aware error messages and IDE features. The custom <code>__repr__</code> omits spans
+for cleaner debug output.</p>
+<h3>Statement</h3>
+<p>Represents complete SQL statements like SELECT, INSERT, CREATE TABLE. Statements
+are top-level constructs that can be executed independently.</p>
+<h3>Expression</h3>
+<p>Represents values and computations: literals, identifiers, operators, function calls,
+subqueries. Expressions produce values and can be nested.</p>
+<h3>Clause</h3>
+<p>Represents named parts of statements: WHERE, ORDER BY, GROUP BY, LIMIT.
+Clauses organize related syntax within statements.</p></div><pre class="source language-python"><strong class="lineNumber">121</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">122</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">123</strong><code class="language-python">class ASTNode:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">124</strong><code class="language-python">    &quot;&quot;&quot;Base class for all AST nodes&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">125</strong><code class="language-python">    span: Optional[Span] = field(default=None, kw_only=True)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">126</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">127</strong><code class="language-python">    def __repr__(self) -&gt; str:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">128</strong><code class="language-python">        fields = [f&quot;{k}={repr(v)}&quot; for k, v in self.__dict__.items() if k != &#x27;span&#x27;]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">129</strong><code class="language-python">        return f&quot;{self.__class__.__name__}({&#x27;, &#x27;.join(fields)})&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">130</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">131</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">132</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">133</strong><code class="language-python">class Statement(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">134</strong><code class="language-python">    &quot;&quot;&quot;Base class for all SQL statements&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">135</strong><code class="language-python">    pass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">136</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">137</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">138</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">139</strong><code class="language-python">class Expression(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">140</strong><code class="language-python">    &quot;&quot;&quot;Base class for all expressions&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">141</strong><code class="language-python">    pass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">142</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">143</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">144</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">145</strong><code class="language-python">class Clause(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">146</strong><code class="language-python">    &quot;&quot;&quot;Base class for all clauses&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">147</strong><code class="language-python">    pass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">148</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>SQL Construct Enumerations</h2>
+<p>These enums provide <strong>type-safe representations</strong> of SQL keywords and options.
+Using enums instead of strings prevents typos and enables IDE autocomplete.</p>
+<p>The enums cover:
+- <strong>JoinType</strong>: INNER, LEFT, RIGHT, FULL, CROSS
+- <strong>Operators</strong>: Unary (+, -, NOT, ~) and Binary (+, -, <em>, /, =, &lt;, &gt;, AND, OR, etc.)
+- </em><em>CompoundOperator</em><em>: UNION, INTERSECT, EXCEPT
+- </em><em>ConflictResolution</em><em>: ROLLBACK, ABORT, FAIL, IGNORE, REPLACE
+- </em><em>TransactionType</em><em>: DEFERRED, IMMEDIATE, EXCLUSIVE
+- </em><em>TriggerTiming</em><em>: BEFORE, AFTER, INSTEAD OF
+- </em><em>OrderDirection</em><em>: ASC, DESC
+- </em><em>FrameType</em>*: ROWS, RANGE, GROUPS (for window functions)</p>
+<p>Each enum value includes its SQL string representation for code generation.</p></div><pre class="source language-python"><strong class="lineNumber">165</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">166</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">167</strong><code class="language-python"># Enums for Various SQL Constructs</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">168</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">169</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">170</strong><code class="language-python">class JoinType(Enum):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">171</strong><code class="language-python">    &quot;&quot;&quot;Types of SQL joins&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">172</strong><code class="language-python">    INNER = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">173</strong><code class="language-python">    LEFT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">174</strong><code class="language-python">    RIGHT = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">175</strong><code class="language-python">    FULL = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">176</strong><code class="language-python">    CROSS = auto()</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">177</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">178</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">179</strong><code class="language-python">class UnaryOperator(Enum):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">180</strong><code class="language-python">    &quot;&quot;&quot;Unary operators&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">181</strong><code class="language-python">    PLUS = &quot;+&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">182</strong><code class="language-python">    MINUS = &quot;-&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">183</strong><code class="language-python">    NOT = &quot;NOT&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">184</strong><code class="language-python">    BITNOT = &quot;~&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">185</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">186</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">187</strong><code class="language-python">class BinaryOperator(Enum):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">188</strong><code class="language-python">    &quot;&quot;&quot;Binary operators&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">189</strong><code class="language-python">    # Arithmetic</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">190</strong><code class="language-python">    ADD = &quot;+&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">191</strong><code class="language-python">    SUBTRACT = &quot;-&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">192</strong><code class="language-python">    MULTIPLY = &quot;*&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">193</strong><code class="language-python">    DIVIDE = &quot;/&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">194</strong><code class="language-python">    MODULO = &quot;%&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">195</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">196</strong><code class="language-python">    # Comparison</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">197</strong><code class="language-python">    EQUAL = &quot;=&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">198</strong><code class="language-python">    EQUAL2 = &quot;==&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">199</strong><code class="language-python">    NOT_EQUAL = &quot;!=&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">200</strong><code class="language-python">    NOT_EQUAL2 = &quot;&lt;&gt;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">201</strong><code class="language-python">    LESS_THAN = &quot;&lt;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">202</strong><code class="language-python">    GREATER_THAN = &quot;&gt;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">203</strong><code class="language-python">    LESS_EQUAL = &quot;&lt;=&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">204</strong><code class="language-python">    GREATER_EQUAL = &quot;&gt;=&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">205</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">206</strong><code class="language-python">    # Logical</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">207</strong><code class="language-python">    AND = &quot;AND&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">208</strong><code class="language-python">    OR = &quot;OR&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">209</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">210</strong><code class="language-python">    # Bitwise</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">211</strong><code class="language-python">    BIT_AND = &quot;&amp;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">212</strong><code class="language-python">    BIT_OR = &quot;|&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">213</strong><code class="language-python">    LEFT_SHIFT = &quot;&lt;&lt;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">214</strong><code class="language-python">    RIGHT_SHIFT = &quot;&gt;&gt;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">215</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">216</strong><code class="language-python">    # String</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">217</strong><code class="language-python">    CONCAT = &quot;||&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">218</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">219</strong><code class="language-python">    # Special</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">220</strong><code class="language-python">    IS = &quot;IS&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">221</strong><code class="language-python">    IS_NOT = &quot;IS NOT&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">222</strong><code class="language-python">    IN = &quot;IN&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">223</strong><code class="language-python">    NOT_IN = &quot;NOT IN&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">224</strong><code class="language-python">    LIKE = &quot;LIKE&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">225</strong><code class="language-python">    NOT_LIKE = &quot;NOT LIKE&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">226</strong><code class="language-python">    GLOB = &quot;GLOB&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">227</strong><code class="language-python">    NOT_GLOB = &quot;NOT GLOB&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">228</strong><code class="language-python">    MATCH = &quot;MATCH&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">229</strong><code class="language-python">    NOT_MATCH = &quot;NOT MATCH&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">230</strong><code class="language-python">    REGEXP = &quot;REGEXP&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">231</strong><code class="language-python">    NOT_REGEXP = &quot;NOT REGEXP&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">232</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">233</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">234</strong><code class="language-python">class CompoundOperator(Enum):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">235</strong><code class="language-python">    &quot;&quot;&quot;Compound SELECT operators&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">236</strong><code class="language-python">    UNION = &quot;UNION&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">237</strong><code class="language-python">    UNION_ALL = &quot;UNION ALL&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">238</strong><code class="language-python">    INTERSECT = &quot;INTERSECT&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">239</strong><code class="language-python">    EXCEPT = &quot;EXCEPT&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">240</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">241</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">242</strong><code class="language-python">class ConflictResolution(Enum):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">243</strong><code class="language-python">    &quot;&quot;&quot;Conflict resolution algorithms&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">244</strong><code class="language-python">    ROLLBACK = &quot;ROLLBACK&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">245</strong><code class="language-python">    ABORT = &quot;ABORT&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">246</strong><code class="language-python">    FAIL = &quot;FAIL&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">247</strong><code class="language-python">    IGNORE = &quot;IGNORE&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">248</strong><code class="language-python">    REPLACE = &quot;REPLACE&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">249</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">250</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">251</strong><code class="language-python">class TransactionType(Enum):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">252</strong><code class="language-python">    &quot;&quot;&quot;Transaction types&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">253</strong><code class="language-python">    DEFERRED = &quot;DEFERRED&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">254</strong><code class="language-python">    IMMEDIATE = &quot;IMMEDIATE&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">255</strong><code class="language-python">    EXCLUSIVE = &quot;EXCLUSIVE&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">256</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">257</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">258</strong><code class="language-python">class TriggerTiming(Enum):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">259</strong><code class="language-python">    &quot;&quot;&quot;Trigger timing&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">260</strong><code class="language-python">    BEFORE = &quot;BEFORE&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">261</strong><code class="language-python">    AFTER = &quot;AFTER&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">262</strong><code class="language-python">    INSTEAD_OF = &quot;INSTEAD OF&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">263</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">264</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">265</strong><code class="language-python">class TriggerEvent(Enum):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">266</strong><code class="language-python">    &quot;&quot;&quot;Trigger events&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">267</strong><code class="language-python">    DELETE = &quot;DELETE&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">268</strong><code class="language-python">    INSERT = &quot;INSERT&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">269</strong><code class="language-python">    UPDATE = &quot;UPDATE&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">270</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">271</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">272</strong><code class="language-python">class OrderDirection(Enum):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">273</strong><code class="language-python">    &quot;&quot;&quot;ORDER BY direction&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">274</strong><code class="language-python">    ASC = &quot;ASC&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">275</strong><code class="language-python">    DESC = &quot;DESC&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">276</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">277</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">278</strong><code class="language-python">class NullsOrdering(Enum):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">279</strong><code class="language-python">    &quot;&quot;&quot;NULLS ordering&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">280</strong><code class="language-python">    FIRST = &quot;FIRST&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">281</strong><code class="language-python">    LAST = &quot;LAST&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">282</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">283</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">284</strong><code class="language-python">class FrameType(Enum):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">285</strong><code class="language-python">    &quot;&quot;&quot;Window frame type&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">286</strong><code class="language-python">    ROWS = &quot;ROWS&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">287</strong><code class="language-python">    RANGE = &quot;RANGE&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">288</strong><code class="language-python">    GROUPS = &quot;GROUPS&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">289</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">290</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">291</strong><code class="language-python">class FrameBound(Enum):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">292</strong><code class="language-python">    &quot;&quot;&quot;Window frame boundary&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">293</strong><code class="language-python">    UNBOUNDED_PRECEDING = &quot;UNBOUNDED PRECEDING&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">294</strong><code class="language-python">    PRECEDING = &quot;PRECEDING&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">295</strong><code class="language-python">    CURRENT_ROW = &quot;CURRENT ROW&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">296</strong><code class="language-python">    FOLLOWING = &quot;FOLLOWING&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">297</strong><code class="language-python">    UNBOUNDED_FOLLOWING = &quot;UNBOUNDED FOLLOWING&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">298</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">299</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Literal Expressions</h2>
+<p>Literals represent <strong>constant values</strong> in SQL. Each literal type preserves both the
+parsed value and metadata about how it was written:</p>
+<ul>
+<li>
+<p><strong>NumberLiteral</strong>: Integers (42) and floats (3.14, 1.5e10). Stores both the numeric
+value and original text to preserve precision and formatting.</p>
+</li>
+<li>
+<p><strong>StringLiteral</strong>: Text in single ('text') or double quotes ("text"). Records which
+quote character was used.</p>
+</li>
+<li>
+<p><strong>BlobLiteral</strong>: Binary data as hex (X'48656C6C6F'). Stores decoded bytes and
+original hex string.</p>
+</li>
+<li>
+<p><strong>NullLiteral</strong>: The NULL keyword, representing absence of value.</p>
+</li>
+<li>
+<p><strong>BooleanLiteral</strong>: TRUE or FALSE keywords (SQLite extension).</p>
+</li>
+<li>
+<p><strong>CurrentTimeLiteral</strong>: CURRENT_TIME, CURRENT_DATE, or CURRENT_TIMESTAMP for
+database-provided timestamps.</p>
+</li>
+</ul>
+<p>All literals inherit from <code>Expression</code>, making them usable anywhere an expression
+is expected.</p></div><pre class="source language-python"><strong class="lineNumber">323</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">324</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">325</strong><code class="language-python"># Literal Expressions</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">326</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">327</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">328</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">329</strong><code class="language-python">class NumberLiteral(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">330</strong><code class="language-python">    &quot;&quot;&quot;Numeric literal (integer or float)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">331</strong><code class="language-python">    value: Union[int, float]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">332</strong><code class="language-python">    raw: str  # original text representation</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">333</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">334</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">335</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">336</strong><code class="language-python">class StringLiteral(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">337</strong><code class="language-python">    &quot;&quot;&quot;String literal&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">338</strong><code class="language-python">    value: str</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">339</strong><code class="language-python">    quote_char: str  # &#x27; or &quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">340</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">341</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">342</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">343</strong><code class="language-python">class BlobLiteral(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">344</strong><code class="language-python">    &quot;&quot;&quot;BLOB literal (X&#x27;hex&#x27;)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">345</strong><code class="language-python">    value: bytes</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">346</strong><code class="language-python">    raw: str  # original hex string</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">347</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">348</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">349</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">350</strong><code class="language-python">class NullLiteral(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">351</strong><code class="language-python">    &quot;&quot;&quot;NULL literal&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">352</strong><code class="language-python">    pass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">353</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">354</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">355</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">356</strong><code class="language-python">class BooleanLiteral(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">357</strong><code class="language-python">    &quot;&quot;&quot;Boolean literal (TRUE/FALSE)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">358</strong><code class="language-python">    value: bool</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">359</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">360</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">361</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">362</strong><code class="language-python">class CurrentTimeLiteral(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">363</strong><code class="language-python">    &quot;&quot;&quot;CURRENT_TIME, CURRENT_DATE, CURRENT_TIMESTAMP&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">364</strong><code class="language-python">    type: str  # TIME, DATE, or TIMESTAMP</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">365</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Identifiers and References</h2>
+<p>Identifiers name database objects and values:</p>
+<h3>Identifier</h3>
+<p>A simple name like <code>users</code> or <code>age</code>. Records whether it was quoted (allowing spaces
+and keywords as names): <code>[user name]</code>, <code>"table"</code>, <code>`column`</code>.</p>
+<h3>QualifiedIdentifier</h3>
+<p>A dot-separated name like <code>schema.table.column</code> or <code>table.column</code>. Provides convenient
+properties (<code>schema</code>, <code>table</code>, <code>column</code>) to access parts without manual indexing.</p>
+<p>Examples:
+- <code>users</code> → parts=["users"]
+- <code>users.id</code> → parts=["users", "id"] (table.column)
+- <code>main.users.id</code> → parts=["main", "users", "id"] (schema.table.column)</p>
+<h3>Parameter</h3>
+<p>A placeholder for bound values:
+- Positional: <code>?</code> or <code>?1</code>, <code>?2</code>, ...
+- Named: <code>:name</code>, <code>@name</code>, <code>$name</code></p>
+<p>Used in prepared statements to safely insert user data.</p></div><pre class="source language-python"><strong class="lineNumber">392</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">393</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">394</strong><code class="language-python"># Identifiers and References</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">395</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">396</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">397</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">398</strong><code class="language-python">class Identifier(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">399</strong><code class="language-python">    &quot;&quot;&quot;Simple identifier&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">400</strong><code class="language-python">    name: str</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">401</strong><code class="language-python">    quoted: bool = False  # whether it was quoted in source</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">402</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">403</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">404</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">405</strong><code class="language-python">class QualifiedIdentifier(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">406</strong><code class="language-python">    &quot;&quot;&quot;Qualified identifier (schema.table.column)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">407</strong><code class="language-python">    parts: List[str]  # [schema, table, column] or [table, column] or [schema, table]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">408</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">409</strong><code class="language-python">    @property</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">410</strong><code class="language-python">    def schema(self) -&gt; Optional[str]:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">411</strong><code class="language-python">        return self.parts[0] if len(self.parts) == 3 else None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">412</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">413</strong><code class="language-python">    @property</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">414</strong><code class="language-python">    def table(self) -&gt; Optional[str]:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">415</strong><code class="language-python">        if len(self.parts) == 3:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">416</strong><code class="language-python">            return self.parts[1]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">417</strong><code class="language-python">        elif len(self.parts) == 2:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">418</strong><code class="language-python">            return self.parts[0]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">419</strong><code class="language-python">        return None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">420</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">421</strong><code class="language-python">    @property</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">422</strong><code class="language-python">    def column(self) -&gt; str:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">423</strong><code class="language-python">        return self.parts[-1]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">424</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">425</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">426</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">427</strong><code class="language-python">class Parameter(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">428</strong><code class="language-python">    &quot;&quot;&quot;Parameter placeholder (?123, :name, @name, $name)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">429</strong><code class="language-python">    name: Optional[str] = None  # None for ? or ?123</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">430</strong><code class="language-python">    number: Optional[int] = None  # for ?123</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">431</strong><code class="language-python">    prefix: str = &quot;?&quot;  # ?, :, @, or $</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">432</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">433</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">434</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">435</strong><code class="language-python"># Unary and Binary Expressions</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">436</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">437</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">438</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">439</strong><code class="language-python">class UnaryExpression(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">440</strong><code class="language-python">    &quot;&quot;&quot;Unary expression&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">441</strong><code class="language-python">    operator: UnaryOperator</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">442</strong><code class="language-python">    operand: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">443</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">444</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">445</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">446</strong><code class="language-python">class BinaryExpression(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">447</strong><code class="language-python">    &quot;&quot;&quot;Binary expression&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">448</strong><code class="language-python">    operator: BinaryOperator</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">449</strong><code class="language-python">    left: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">450</strong><code class="language-python">    right: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">451</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">452</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">453</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">454</strong><code class="language-python">class BetweenExpression(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">455</strong><code class="language-python">    &quot;&quot;&quot;BETWEEN expression&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">456</strong><code class="language-python">    value: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">457</strong><code class="language-python">    lower: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">458</strong><code class="language-python">    upper: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">459</strong><code class="language-python">    negated: bool = False  # NOT BETWEEN</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">460</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">461</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">462</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">463</strong><code class="language-python">class InExpression(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">464</strong><code class="language-python">    &quot;&quot;&quot;IN expression&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">465</strong><code class="language-python">    value: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">466</strong><code class="language-python">    values: Union[List[Expression], &#x27;SubqueryExpression&#x27;]  # list or subquery</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">467</strong><code class="language-python">    negated: bool = False  # NOT IN</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">468</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">469</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">470</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">471</strong><code class="language-python">class LikeExpression(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">472</strong><code class="language-python">    &quot;&quot;&quot;LIKE/GLOB/REGEXP/MATCH expression&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">473</strong><code class="language-python">    value: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">474</strong><code class="language-python">    pattern: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">475</strong><code class="language-python">    operator: str  # LIKE, GLOB, REGEXP, or MATCH</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">476</strong><code class="language-python">    escape: Optional[Expression] = None  # ESCAPE clause</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">477</strong><code class="language-python">    negated: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">478</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">479</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">480</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">481</strong><code class="language-python"># Function Calls and Special Expressions</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">482</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">483</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">484</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">485</strong><code class="language-python">class FunctionCall(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">486</strong><code class="language-python">    &quot;&quot;&quot;Function call&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">487</strong><code class="language-python">    name: str</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">488</strong><code class="language-python">    args: List[Expression]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">489</strong><code class="language-python">    distinct: bool = False  # DISTINCT keyword</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">490</strong><code class="language-python">    star: bool = False  # COUNT(*)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">491</strong><code class="language-python">    filter_clause: Optional[&#x27;WhereClause&#x27;] = None  # FILTER (WHERE ...)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">492</strong><code class="language-python">    over_clause: Optional[&#x27;WindowExpression&#x27;] = None  # OVER (...)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">493</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">494</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">495</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">496</strong><code class="language-python">class CaseExpression(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">497</strong><code class="language-python">    &quot;&quot;&quot;CASE expression&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">498</strong><code class="language-python">    value: Optional[Expression] = None  # for CASE value WHEN ...</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">499</strong><code class="language-python">    when_clauses: List[tuple[Expression, Expression]] = field(default_factory=list)  # [(condition, result), ...]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">500</strong><code class="language-python">    else_clause: Optional[Expression] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">501</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">502</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">503</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">504</strong><code class="language-python">class CastExpression(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">505</strong><code class="language-python">    &quot;&quot;&quot;CAST expression&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">506</strong><code class="language-python">    expression: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">507</strong><code class="language-python">    type_name: str</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">508</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">509</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">510</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">511</strong><code class="language-python">class CollateExpression(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">512</strong><code class="language-python">    &quot;&quot;&quot;COLLATE expression&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">513</strong><code class="language-python">    expression: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">514</strong><code class="language-python">    collation: str</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">515</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">516</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">517</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">518</strong><code class="language-python">class ExistsExpression(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">519</strong><code class="language-python">    &quot;&quot;&quot;EXISTS expression&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">520</strong><code class="language-python">    subquery: &#x27;SubqueryExpression&#x27;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">521</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">522</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">523</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">524</strong><code class="language-python">class SubqueryExpression(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">525</strong><code class="language-python">    &quot;&quot;&quot;Subquery in parentheses&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">526</strong><code class="language-python">    select: &#x27;SelectStatement&#x27;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">527</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">528</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">529</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">530</strong><code class="language-python">class ParenthesizedExpression(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">531</strong><code class="language-python">    &quot;&quot;&quot;Expression in parentheses (not a subquery)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">532</strong><code class="language-python">    expression: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">533</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">534</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">535</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">536</strong><code class="language-python">class RaiseExpression(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">537</strong><code class="language-python">    &quot;&quot;&quot;RAISE expression (for triggers only)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">538</strong><code class="language-python">    raise_type: str  # IGNORE, ROLLBACK, ABORT, or FAIL</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">539</strong><code class="language-python">    message: Optional[str] = None  # error message (not used for IGNORE)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">540</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">541</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">542</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">543</strong><code class="language-python"># Window Functions</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">544</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">545</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">546</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">547</strong><code class="language-python">class WindowExpression(Expression):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">548</strong><code class="language-python">    &quot;&quot;&quot;Window specification (OVER clause)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">549</strong><code class="language-python">    window_name: Optional[str] = None  # named window</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">550</strong><code class="language-python">    partition_by: List[Expression] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">551</strong><code class="language-python">    order_by: List[&#x27;OrderingTerm&#x27;] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">552</strong><code class="language-python">    frame_spec: Optional[&#x27;FrameSpec&#x27;] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">553</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">554</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">555</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">556</strong><code class="language-python">class FrameSpec(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">557</strong><code class="language-python">    &quot;&quot;&quot;Window frame specification&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">558</strong><code class="language-python">    frame_type: FrameType  # ROWS, RANGE, or GROUPS</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">559</strong><code class="language-python">    start: &#x27;FrameBoundary&#x27;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">560</strong><code class="language-python">    end: Optional[&#x27;FrameBoundary&#x27;] = None  # None means CURRENT ROW</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">561</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">562</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">563</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">564</strong><code class="language-python">class FrameBoundary(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">565</strong><code class="language-python">    &quot;&quot;&quot;Window frame boundary&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">566</strong><code class="language-python">    bound_type: FrameBound</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">567</strong><code class="language-python">    offset: Optional[Expression] = None  # for PRECEDING/FOLLOWING with offset</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">568</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">569</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">570</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">571</strong><code class="language-python"># Common Clauses</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">572</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">573</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">574</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">575</strong><code class="language-python">class WhereClause(Clause):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">576</strong><code class="language-python">    &quot;&quot;&quot;WHERE clause&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">577</strong><code class="language-python">    condition: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">578</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">579</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">580</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">581</strong><code class="language-python">class OrderByClause(Clause):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">582</strong><code class="language-python">    &quot;&quot;&quot;ORDER BY clause&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">583</strong><code class="language-python">    terms: List[&#x27;OrderingTerm&#x27;]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">584</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">585</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">586</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">587</strong><code class="language-python">class OrderingTerm(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">588</strong><code class="language-python">    &quot;&quot;&quot;Single ORDER BY term&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">589</strong><code class="language-python">    expression: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">590</strong><code class="language-python">    direction: Optional[OrderDirection] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">591</strong><code class="language-python">    nulls: Optional[NullsOrdering] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">592</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">593</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">594</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">595</strong><code class="language-python">class GroupByClause(Clause):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">596</strong><code class="language-python">    &quot;&quot;&quot;GROUP BY clause&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">597</strong><code class="language-python">    expressions: List[Expression]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">598</strong><code class="language-python">    having: Optional[&#x27;HavingClause&#x27;] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">599</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">600</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">601</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">602</strong><code class="language-python">class HavingClause(Clause):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">603</strong><code class="language-python">    &quot;&quot;&quot;HAVING clause&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">604</strong><code class="language-python">    condition: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">605</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">606</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">607</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">608</strong><code class="language-python">class LimitClause(Clause):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">609</strong><code class="language-python">    &quot;&quot;&quot;LIMIT clause&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">610</strong><code class="language-python">    limit: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">611</strong><code class="language-python">    offset: Optional[Expression] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">612</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">613</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">614</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">615</strong><code class="language-python">class ReturningClause(Clause):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">616</strong><code class="language-python">    &quot;&quot;&quot;RETURNING clause&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">617</strong><code class="language-python">    columns: List[&#x27;ResultColumn&#x27;]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">618</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">619</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">620</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">621</strong><code class="language-python"># SELECT Statement Components</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">622</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">623</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">624</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">625</strong><code class="language-python">class ResultColumn(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">626</strong><code class="language-python">    &quot;&quot;&quot;Result column in SELECT&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">627</strong><code class="language-python">    expression: Optional[Expression] = None  # None for *</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">628</strong><code class="language-python">    alias: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">629</strong><code class="language-python">    table_star: Optional[str] = None  # for table.*</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">630</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">631</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">632</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">633</strong><code class="language-python">class FromClause(Clause):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">634</strong><code class="language-python">    &quot;&quot;&quot;FROM clause&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">635</strong><code class="language-python">    source: Union[&#x27;TableReference&#x27;, &#x27;JoinClause&#x27;]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">636</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">637</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">638</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">639</strong><code class="language-python">class TableReference(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">640</strong><code class="language-python">    &quot;&quot;&quot;Table reference in FROM&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">641</strong><code class="language-python">    name: QualifiedIdentifier</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">642</strong><code class="language-python">    alias: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">643</strong><code class="language-python">    indexed_by: Optional[str] = None  # INDEXED BY index_name</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">644</strong><code class="language-python">    not_indexed: bool = False  # NOT INDEXED</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">645</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">646</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">647</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">648</strong><code class="language-python">class SubqueryTable(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">649</strong><code class="language-python">    &quot;&quot;&quot;Subquery as table source&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">650</strong><code class="language-python">    select: &#x27;SelectStatement&#x27;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">651</strong><code class="language-python">    alias: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">652</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">653</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">654</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">655</strong><code class="language-python">class TableFunctionCall(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">656</strong><code class="language-python">    &quot;&quot;&quot;Table-valued function call&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">657</strong><code class="language-python">    function: FunctionCall</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">658</strong><code class="language-python">    alias: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">659</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">660</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">661</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">662</strong><code class="language-python">class JoinClause(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">663</strong><code class="language-python">    &quot;&quot;&quot;JOIN clause&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">664</strong><code class="language-python">    left: Union[TableReference, SubqueryTable, &#x27;JoinClause&#x27;]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">665</strong><code class="language-python">    join_type: Optional[JoinType]  # None for comma join</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">666</strong><code class="language-python">    right: Union[TableReference, SubqueryTable]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">667</strong><code class="language-python">    natural: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">668</strong><code class="language-python">    on_condition: Optional[Expression] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">669</strong><code class="language-python">    using_columns: List[str] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">670</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">671</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">672</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">673</strong><code class="language-python">class WithClause(Clause):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">674</strong><code class="language-python">    &quot;&quot;&quot;WITH clause (CTE)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">675</strong><code class="language-python">    recursive: bool</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">676</strong><code class="language-python">    ctes: List[&#x27;CommonTableExpression&#x27;]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">677</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">678</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">679</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">680</strong><code class="language-python">class CommonTableExpression(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">681</strong><code class="language-python">    &quot;&quot;&quot;Single CTE&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">682</strong><code class="language-python">    name: str</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">683</strong><code class="language-python">    columns: List[str] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">684</strong><code class="language-python">    select: &#x27;SelectStatement&#x27; = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">685</strong><code class="language-python">    materialized: Optional[bool] = None  # True=MATERIALIZED, False=NOT MATERIALIZED, None=default</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">686</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">687</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>SELECT Statement</h2>
+<p>The SELECT statement is the <strong>most complex</strong> SQL construct, supporting queries,
+subqueries, joins, aggregation, window functions, and compound queries.</p>
+<h3>Structure</h3>
+<p><code>[WITH ...] SELECT ... FROM ... WHERE ... GROUP BY ... HAVING ...
+[UNION/INTERSECT/EXCEPT SELECT ...]
+[ORDER BY ...] [LIMIT ...]</code></p>
+<h3>SelectStatement</h3>
+<p>The top-level node for any SELECT query. It consists of:</p>
+<ul>
+<li><strong>with_clause</strong>: Optional CTEs (WITH RECURSIVE name AS ...)</li>
+<li><strong>select_core</strong>: The main SELECT...FROM...WHERE...GROUP BY</li>
+<li><strong>compound_selects</strong>: Additional SELECT cores connected by UNION/INTERSECT/EXCEPT</li>
+<li><strong>order_by</strong>: Global ORDER BY (applies to entire compound query)</li>
+<li><strong>limit</strong>: Global LIMIT/OFFSET</li>
+</ul>
+<h3>SelectCore</h3>
+<p>The core SELECT logic before ORDER BY/LIMIT:</p>
+<ul>
+<li><strong>distinct/all</strong>: DISTINCT or ALL keyword</li>
+<li><strong>columns</strong>: Result columns (expressions with optional aliases)</li>
+<li><strong>from_clause</strong>: Tables, joins, or subqueries</li>
+<li><strong>where</strong>: Filter conditions</li>
+<li><strong>group_by</strong>: Grouping expressions with optional HAVING</li>
+<li><strong>window_definitions</strong>: Named windows (WINDOW name AS (...))</li>
+</ul>
+<h3>Compound Queries</h3>
+<p>Multiple SELECT cores can be combined:
+- UNION [ALL]: Combine results (ALL keeps duplicates)
+- INTERSECT: Common rows
+- EXCEPT: Rows in first but not second</p></div><pre class="source language-python"><strong class="lineNumber">728</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">729</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">730</strong><code class="language-python"># SELECT Statement</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">731</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">732</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">733</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">734</strong><code class="language-python">class SelectStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">735</strong><code class="language-python">    &quot;&quot;&quot;SELECT statement (including compound SELECTs)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">736</strong><code class="language-python">    with_clause: Optional[WithClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">737</strong><code class="language-python">    select_core: &#x27;SelectCore&#x27; = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">738</strong><code class="language-python">    compound_selects: List[tuple[CompoundOperator, &#x27;SelectCore&#x27;]] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">739</strong><code class="language-python">    order_by: Optional[OrderByClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">740</strong><code class="language-python">    limit: Optional[LimitClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">741</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">742</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">743</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">744</strong><code class="language-python">class SelectCore(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">745</strong><code class="language-python">    &quot;&quot;&quot;Core SELECT (without ORDER BY/LIMIT)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">746</strong><code class="language-python">    distinct: bool = False  # DISTINCT</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">747</strong><code class="language-python">    all: bool = False  # ALL</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">748</strong><code class="language-python">    columns: List[ResultColumn] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">749</strong><code class="language-python">    from_clause: Optional[FromClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">750</strong><code class="language-python">    where: Optional[WhereClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">751</strong><code class="language-python">    group_by: Optional[GroupByClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">752</strong><code class="language-python">    window_definitions: List[tuple[str, WindowExpression]] = field(default_factory=list)  # named windows</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">753</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Data Modification Statements (DML)</h2>
+<p>DML statements modify table data: INSERT, UPDATE, DELETE. They all support:</p>
+<ul>
+<li><strong>WITH clause</strong>: CTEs can be used in data modification</li>
+<li><strong>RETURNING clause</strong>: Return modified rows (SQLite 3.35+)</li>
+<li><strong>Conflict resolution</strong>: OR IGNORE, OR REPLACE, OR ROLLBACK, etc.</li>
+</ul>
+<h3>INSERT</h3>
+<p>Adds rows to a table via:
+- VALUES: Explicit row values <code>INSERT INTO t VALUES (1, 2), (3, 4)</code>
+- SELECT: Insert query results <code>INSERT INTO t SELECT * FROM other</code>
+- DEFAULT VALUES: Use column defaults <code>INSERT INTO t DEFAULT VALUES</code></p>
+<p>Supports UPSERT (ON CONFLICT) for handling primary key/unique violations.</p>
+<h3>UPDATE</h3>
+<p>Modifies existing rows with SET assignments and optional WHERE filter.
+SQLite extensions: UPDATE FROM (joins) and ORDER BY/LIMIT.</p>
+<h3>DELETE</h3>
+<p>Removes rows matching WHERE condition. Optional ORDER BY/LIMIT with
+SQLITE_ENABLE_UPDATE_DELETE_LIMIT.</p></div><pre class="source language-python"><strong class="lineNumber">780</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">781</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">782</strong><code class="language-python"># INSERT Statement</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">783</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">784</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">785</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">786</strong><code class="language-python">class InsertStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">787</strong><code class="language-python">    &quot;&quot;&quot;INSERT statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">788</strong><code class="language-python">    with_clause: Optional[WithClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">789</strong><code class="language-python">    replace: bool = False  # REPLACE keyword</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">790</strong><code class="language-python">    conflict_resolution: Optional[ConflictResolution] = None  # OR IGNORE, etc.</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">791</strong><code class="language-python">    table: QualifiedIdentifier = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">792</strong><code class="language-python">    table_alias: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">793</strong><code class="language-python">    columns: List[str] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">794</strong><code class="language-python">    values: Optional[&#x27;ValuesClause&#x27;] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">795</strong><code class="language-python">    select: Optional[SelectStatement] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">796</strong><code class="language-python">    default_values: bool = False  # DEFAULT VALUES</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">797</strong><code class="language-python">    upsert_clauses: List[&#x27;UpsertClause&#x27;] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">798</strong><code class="language-python">    returning: Optional[ReturningClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">799</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">800</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">801</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">802</strong><code class="language-python">class ValuesClause(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">803</strong><code class="language-python">    &quot;&quot;&quot;VALUES clause&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">804</strong><code class="language-python">    rows: List[List[Expression]]  # list of value lists</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">805</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">806</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">807</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">808</strong><code class="language-python">class UpsertClause(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">809</strong><code class="language-python">    &quot;&quot;&quot;UPSERT clause (ON CONFLICT)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">810</strong><code class="language-python">    conflict_target: Optional[&#x27;ConflictTarget&#x27;] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">811</strong><code class="language-python">    do_nothing: bool = False  # DO NOTHING</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">812</strong><code class="language-python">    do_update: Optional[&#x27;DoUpdateClause&#x27;] = None  # DO UPDATE SET ...</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">813</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">814</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">815</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">816</strong><code class="language-python">class ConflictTarget(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">817</strong><code class="language-python">    &quot;&quot;&quot;Conflict target for UPSERT&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">818</strong><code class="language-python">    indexed_columns: List[&#x27;IndexedColumn&#x27;] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">819</strong><code class="language-python">    where: Optional[WhereClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">820</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">821</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">822</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">823</strong><code class="language-python">class DoUpdateClause(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">824</strong><code class="language-python">    &quot;&quot;&quot;DO UPDATE SET clause&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">825</strong><code class="language-python">    assignments: List[&#x27;Assignment&#x27;] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">826</strong><code class="language-python">    where: Optional[WhereClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">827</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">828</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">829</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">830</strong><code class="language-python">class Assignment(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">831</strong><code class="language-python">    &quot;&quot;&quot;Column assignment (SET col = expr)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">832</strong><code class="language-python">    column: str</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">833</strong><code class="language-python">    value: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">834</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">835</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">836</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">837</strong><code class="language-python"># UPDATE Statement</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">838</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">839</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">840</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">841</strong><code class="language-python">class UpdateStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">842</strong><code class="language-python">    &quot;&quot;&quot;UPDATE statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">843</strong><code class="language-python">    with_clause: Optional[WithClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">844</strong><code class="language-python">    conflict_resolution: Optional[ConflictResolution] = None  # OR IGNORE, etc.</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">845</strong><code class="language-python">    table: QualifiedIdentifier = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">846</strong><code class="language-python">    table_alias: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">847</strong><code class="language-python">    indexed_by: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">848</strong><code class="language-python">    not_indexed: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">849</strong><code class="language-python">    assignments: List[Assignment] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">850</strong><code class="language-python">    from_clause: Optional[FromClause] = None  # UPDATE FROM extension</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">851</strong><code class="language-python">    where: Optional[WhereClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">852</strong><code class="language-python">    order_by: Optional[OrderByClause] = None  # if SQLITE_ENABLE_UPDATE_DELETE_LIMIT</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">853</strong><code class="language-python">    limit: Optional[LimitClause] = None  # if SQLITE_ENABLE_UPDATE_DELETE_LIMIT</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">854</strong><code class="language-python">    returning: Optional[ReturningClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">855</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">856</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">857</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">858</strong><code class="language-python"># DELETE Statement</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">859</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">860</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">861</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">862</strong><code class="language-python">class DeleteStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">863</strong><code class="language-python">    &quot;&quot;&quot;DELETE statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">864</strong><code class="language-python">    with_clause: Optional[WithClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">865</strong><code class="language-python">    table: QualifiedIdentifier = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">866</strong><code class="language-python">    table_alias: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">867</strong><code class="language-python">    indexed_by: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">868</strong><code class="language-python">    not_indexed: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">869</strong><code class="language-python">    where: Optional[WhereClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">870</strong><code class="language-python">    order_by: Optional[OrderByClause] = None  # if SQLITE_ENABLE_UPDATE_DELETE_LIMIT</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">871</strong><code class="language-python">    limit: Optional[LimitClause] = None  # if SQLITE_ENABLE_UPDATE_DELETE_LIMIT</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">872</strong><code class="language-python">    returning: Optional[ReturningClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">873</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">874</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Data Definition Statements (DDL)</h2>
+<p>DDL statements define and modify database schema: CREATE, ALTER, DROP.</p>
+<h3>CREATE TABLE</h3>
+<p>Defines a new table with:</p>
+<ul>
+<li><strong>Column Definitions</strong>: Name, type, and constraints for each column</li>
+<li><strong>Table Constraints</strong>: PRIMARY KEY, UNIQUE, CHECK, FOREIGN KEY across columns</li>
+<li><strong>Options</strong>:</li>
+<li>WITHOUT ROWID: Use primary key as physical storage key (no hidden rowid)</li>
+<li>STRICT: Enforce type affinity strictly (SQLite 3.37+)</li>
+<li>IF NOT EXISTS: No error if table already exists</li>
+<li>TEMPORARY: Table persists only for the session</li>
+</ul>
+<h4>Column Constraints</h4>
+<ul>
+<li>PRIMARY KEY [AUTOINCREMENT]: Unique identifier, auto-increment for INTEGER</li>
+<li>NOT NULL: Require value</li>
+<li>UNIQUE: No duplicate values</li>
+<li>CHECK(expr): Value must satisfy expression</li>
+<li>DEFAULT expr: Default value if not specified</li>
+<li>COLLATE: Collation for text comparison</li>
+<li>REFERENCES: Foreign key to another table</li>
+<li>GENERATED ALWAYS AS (expr) [STORED|VIRTUAL]: Computed column</li>
+</ul>
+<h4>Table Constraints</h4>
+<p>Applied after all columns, can reference multiple columns:
+- PRIMARY KEY(col1, col2, ...): Composite primary key
+- UNIQUE(col1, col2, ...): Composite unique constraint
+- CHECK(expr): Table-level check
+- FOREIGN KEY(cols) REFERENCES table(cols): Foreign key relationship</p></div><pre class="source language-python"><strong class="lineNumber">909</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">910</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">911</strong><code class="language-python"># CREATE TABLE Statement</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">912</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">913</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">914</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">915</strong><code class="language-python">class CreateTableStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">916</strong><code class="language-python">    &quot;&quot;&quot;CREATE TABLE statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">917</strong><code class="language-python">    temporary: bool = False  # TEMP/TEMPORARY</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">918</strong><code class="language-python">    if_not_exists: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">919</strong><code class="language-python">    table_name: QualifiedIdentifier = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">920</strong><code class="language-python">    columns: List[&#x27;ColumnDefinition&#x27;] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">921</strong><code class="language-python">    constraints: List[&#x27;TableConstraint&#x27;] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">922</strong><code class="language-python">    without_rowid: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">923</strong><code class="language-python">    strict: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">924</strong><code class="language-python">    as_select: Optional[SelectStatement] = None  # for CREATE TABLE AS SELECT</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">925</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">926</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">927</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">928</strong><code class="language-python">class ColumnDefinition(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">929</strong><code class="language-python">    &quot;&quot;&quot;Column definition&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">930</strong><code class="language-python">    name: str</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">931</strong><code class="language-python">    type_name: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">932</strong><code class="language-python">    constraints: List[&#x27;ColumnConstraint&#x27;] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">933</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">934</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">935</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">936</strong><code class="language-python">class ColumnConstraint(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">937</strong><code class="language-python">    &quot;&quot;&quot;Column constraint&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">938</strong><code class="language-python">    name: Optional[str] = None  # CONSTRAINT name</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">939</strong><code class="language-python">    constraint_type: str = None  # PRIMARY_KEY, NOT_NULL, UNIQUE, CHECK, DEFAULT, COLLATE, REFERENCES, GENERATED</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">940</strong><code class="language-python">    # Specific fields based on type</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">941</strong><code class="language-python">    primary_key: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">942</strong><code class="language-python">    autoincrement: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">943</strong><code class="language-python">    unique: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">944</strong><code class="language-python">    not_null: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">945</strong><code class="language-python">    check_expression: Optional[Expression] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">946</strong><code class="language-python">    default_value: Optional[Expression] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">947</strong><code class="language-python">    collation: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">948</strong><code class="language-python">    foreign_key: Optional[&#x27;ForeignKeyClause&#x27;] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">949</strong><code class="language-python">    generated: Optional[&#x27;GeneratedColumnClause&#x27;] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">950</strong><code class="language-python">    on_conflict: Optional[ConflictResolution] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">951</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">952</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">953</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">954</strong><code class="language-python">class TableConstraint(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">955</strong><code class="language-python">    &quot;&quot;&quot;Table constraint&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">956</strong><code class="language-python">    name: Optional[str] = None  # CONSTRAINT name</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">957</strong><code class="language-python">    constraint_type: str = None  # PRIMARY_KEY, UNIQUE, CHECK, FOREIGN_KEY</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">958</strong><code class="language-python">    # Specific fields</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">959</strong><code class="language-python">    columns: List[&#x27;IndexedColumn&#x27;] = field(default_factory=list)  # for PRIMARY KEY, UNIQUE, FOREIGN KEY</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">960</strong><code class="language-python">    check_expression: Optional[Expression] = None  # for CHECK</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">961</strong><code class="language-python">    foreign_key: Optional[&#x27;ForeignKeyClause&#x27;] = None  # for FOREIGN KEY</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">962</strong><code class="language-python">    on_conflict: Optional[ConflictResolution] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">963</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">964</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">965</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">966</strong><code class="language-python">class ForeignKeyClause(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">967</strong><code class="language-python">    &quot;&quot;&quot;FOREIGN KEY clause&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">968</strong><code class="language-python">    foreign_table: str</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">969</strong><code class="language-python">    foreign_columns: List[str] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">970</strong><code class="language-python">    on_delete: Optional[str] = None  # SET NULL, SET DEFAULT, CASCADE, RESTRICT, NO ACTION</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">971</strong><code class="language-python">    on_update: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">972</strong><code class="language-python">    match: Optional[str] = None  # MATCH name</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">973</strong><code class="language-python">    deferrable: Optional[bool] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">974</strong><code class="language-python">    initially_deferred: Optional[bool] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">975</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">976</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">977</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">978</strong><code class="language-python">class GeneratedColumnClause(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">979</strong><code class="language-python">    &quot;&quot;&quot;GENERATED ALWAYS AS clause&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">980</strong><code class="language-python">    expression: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">981</strong><code class="language-python">    stored: bool = False  # STORED vs VIRTUAL</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">982</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">983</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">984</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">985</strong><code class="language-python">class IndexedColumn(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">986</strong><code class="language-python">    &quot;&quot;&quot;Indexed column (for indexes and constraints)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">987</strong><code class="language-python">    expression: Expression  # can be column name or expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">988</strong><code class="language-python">    collation: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">989</strong><code class="language-python">    direction: Optional[OrderDirection] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">990</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">991</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">992</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">993</strong><code class="language-python"># ALTER TABLE Statement</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">994</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">995</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">996</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">997</strong><code class="language-python">class AlterTableStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">998</strong><code class="language-python">    &quot;&quot;&quot;ALTER TABLE statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">999</strong><code class="language-python">    table_name: QualifiedIdentifier = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1000</strong><code class="language-python">    action: &#x27;AlterTableAction&#x27; = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1001</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1002</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1003</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1004</strong><code class="language-python">class AlterTableAction(ASTNode):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1005</strong><code class="language-python">    &quot;&quot;&quot;ALTER TABLE action&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1006</strong><code class="language-python">    action_type: str = None  # RENAME_TABLE, RENAME_COLUMN, ADD_COLUMN, DROP_COLUMN</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1007</strong><code class="language-python">    # Specific fields</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1008</strong><code class="language-python">    new_table_name: Optional[str] = None  # for RENAME TABLE</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1009</strong><code class="language-python">    old_column_name: Optional[str] = None  # for RENAME COLUMN</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1010</strong><code class="language-python">    new_column_name: Optional[str] = None  # for RENAME COLUMN</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1011</strong><code class="language-python">    column_definition: Optional[ColumnDefinition] = None  # for ADD COLUMN</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1012</strong><code class="language-python">    column_name: Optional[str] = None  # for DROP COLUMN</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1013</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1014</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1015</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1016</strong><code class="language-python"># CREATE INDEX Statement</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1017</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1018</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1019</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1020</strong><code class="language-python">class CreateIndexStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1021</strong><code class="language-python">    &quot;&quot;&quot;CREATE INDEX statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1022</strong><code class="language-python">    unique: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1023</strong><code class="language-python">    if_not_exists: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1024</strong><code class="language-python">    index_name: QualifiedIdentifier = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1025</strong><code class="language-python">    table_name: str = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1026</strong><code class="language-python">    indexed_columns: List[IndexedColumn] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1027</strong><code class="language-python">    where: Optional[WhereClause] = None  # partial index</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1028</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1029</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1030</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1031</strong><code class="language-python"># CREATE VIEW Statement</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1032</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1033</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1034</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1035</strong><code class="language-python">class CreateViewStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1036</strong><code class="language-python">    &quot;&quot;&quot;CREATE VIEW statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1037</strong><code class="language-python">    temporary: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1038</strong><code class="language-python">    if_not_exists: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1039</strong><code class="language-python">    view_name: QualifiedIdentifier = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1040</strong><code class="language-python">    columns: List[str] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1041</strong><code class="language-python">    select: SelectStatement = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1042</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1043</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1044</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1045</strong><code class="language-python"># CREATE TRIGGER Statement</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1046</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1047</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1048</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1049</strong><code class="language-python">class CreateTriggerStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1050</strong><code class="language-python">    &quot;&quot;&quot;CREATE TRIGGER statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1051</strong><code class="language-python">    temporary: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1052</strong><code class="language-python">    if_not_exists: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1053</strong><code class="language-python">    trigger_name: QualifiedIdentifier = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1054</strong><code class="language-python">    timing: Optional[TriggerTiming] = None  # BEFORE, AFTER, or None for INSTEAD OF</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1055</strong><code class="language-python">    instead_of: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1056</strong><code class="language-python">    event: TriggerEvent = None  # DELETE, INSERT, UPDATE</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1057</strong><code class="language-python">    update_columns: List[str] = field(default_factory=list)  # for UPDATE OF</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1058</strong><code class="language-python">    table_name: str = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1059</strong><code class="language-python">    for_each_row: bool = True  # always true in SQLite currently</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1060</strong><code class="language-python">    when: Optional[WhereClause] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1061</strong><code class="language-python">    body: List[Statement] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1062</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1063</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1064</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1065</strong><code class="language-python"># CREATE VIRTUAL TABLE Statement</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1066</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1067</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1068</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1069</strong><code class="language-python">class CreateVirtualTableStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1070</strong><code class="language-python">    &quot;&quot;&quot;CREATE VIRTUAL TABLE statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1071</strong><code class="language-python">    if_not_exists: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1072</strong><code class="language-python">    table_name: QualifiedIdentifier = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1073</strong><code class="language-python">    module_name: str = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1074</strong><code class="language-python">    module_arguments: List[str] = field(default_factory=list)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1075</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1076</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1077</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1078</strong><code class="language-python"># DROP Statements</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1079</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1080</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1081</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1082</strong><code class="language-python">class DropTableStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1083</strong><code class="language-python">    &quot;&quot;&quot;DROP TABLE statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1084</strong><code class="language-python">    if_exists: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1085</strong><code class="language-python">    table_name: QualifiedIdentifier = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1086</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1087</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1088</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1089</strong><code class="language-python">class DropIndexStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1090</strong><code class="language-python">    &quot;&quot;&quot;DROP INDEX statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1091</strong><code class="language-python">    if_exists: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1092</strong><code class="language-python">    index_name: QualifiedIdentifier = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1093</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1094</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1095</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1096</strong><code class="language-python">class DropViewStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1097</strong><code class="language-python">    &quot;&quot;&quot;DROP VIEW statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1098</strong><code class="language-python">    if_exists: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1099</strong><code class="language-python">    view_name: QualifiedIdentifier = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1100</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1101</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1102</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1103</strong><code class="language-python">class DropTriggerStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1104</strong><code class="language-python">    &quot;&quot;&quot;DROP TRIGGER statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1105</strong><code class="language-python">    if_exists: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1106</strong><code class="language-python">    trigger_name: QualifiedIdentifier = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1107</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1108</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1109</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1110</strong><code class="language-python"># Transaction Control Statements</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1111</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1112</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1113</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1114</strong><code class="language-python">class BeginStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1115</strong><code class="language-python">    &quot;&quot;&quot;BEGIN TRANSACTION statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1116</strong><code class="language-python">    transaction_type: Optional[TransactionType] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1117</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1118</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1119</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1120</strong><code class="language-python">class CommitStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1121</strong><code class="language-python">    &quot;&quot;&quot;COMMIT TRANSACTION statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1122</strong><code class="language-python">    pass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1123</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1124</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1125</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1126</strong><code class="language-python">class RollbackStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1127</strong><code class="language-python">    &quot;&quot;&quot;ROLLBACK TRANSACTION statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1128</strong><code class="language-python">    savepoint: Optional[str] = None  # TO SAVEPOINT name</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1129</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1130</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1131</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1132</strong><code class="language-python">class SavepointStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1133</strong><code class="language-python">    &quot;&quot;&quot;SAVEPOINT statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1134</strong><code class="language-python">    name: str</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1135</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1136</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1137</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1138</strong><code class="language-python">class ReleaseStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1139</strong><code class="language-python">    &quot;&quot;&quot;RELEASE SAVEPOINT statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1140</strong><code class="language-python">    name: str</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1141</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1142</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1143</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1144</strong><code class="language-python"># Database Management Statements</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1145</strong><code class="language-python"># ==============================================================================</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1146</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1147</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1148</strong><code class="language-python">class AttachStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1149</strong><code class="language-python">    &quot;&quot;&quot;ATTACH DATABASE statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1150</strong><code class="language-python">    database_expression: Expression</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1151</strong><code class="language-python">    schema_name: str</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1152</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1153</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1154</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1155</strong><code class="language-python">class DetachStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1156</strong><code class="language-python">    &quot;&quot;&quot;DETACH DATABASE statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1157</strong><code class="language-python">    schema_name: str</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1158</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1159</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1160</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1161</strong><code class="language-python">class AnalyzeStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1162</strong><code class="language-python">    &quot;&quot;&quot;ANALYZE statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1163</strong><code class="language-python">    target: Optional[QualifiedIdentifier] = None  # schema, table, or index</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1164</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1165</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1166</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1167</strong><code class="language-python">class VacuumStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1168</strong><code class="language-python">    &quot;&quot;&quot;VACUUM statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1169</strong><code class="language-python">    schema_name: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1170</strong><code class="language-python">    into_filename: Optional[Expression] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1171</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1172</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1173</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1174</strong><code class="language-python">class ReindexStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1175</strong><code class="language-python">    &quot;&quot;&quot;REINDEX statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1176</strong><code class="language-python">    target: Optional[Union[str, QualifiedIdentifier]] = None  # collation, table, or index</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1177</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1178</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1179</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1180</strong><code class="language-python">class ExplainStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1181</strong><code class="language-python">    &quot;&quot;&quot;EXPLAIN [QUERY PLAN] statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1182</strong><code class="language-python">    query_plan: bool = False</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1183</strong><code class="language-python">    statement: Statement = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1184</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1185</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1186</strong><code class="language-python">@dataclass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1187</strong><code class="language-python">class PragmaStatement(Statement):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1188</strong><code class="language-python">    &quot;&quot;&quot;PRAGMA statement&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1189</strong><code class="language-python">    pragma_name: str</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1190</strong><code class="language-python">    schema_name: Optional[str] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1191</strong><code class="language-python">    value: Optional[Union[str, int, Expression]] = None</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">1192</strong><code class="language-python"></code></pre></div>
+    </main>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+
+</html>

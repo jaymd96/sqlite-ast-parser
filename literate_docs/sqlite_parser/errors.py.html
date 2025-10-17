@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>sqlite_parser/errors.py annotated source</title>
+    <link rel="stylesheet" href="../main.css">
+</head>
+
+<body>
+    <main>
+        <div class="line">
+            <div class="doc">
+                <h1>sqlite_parser/errors.py <span class="fade">annotated source</span></h1>
+                <em><a class="back" href="../">Back to index</a></em>
+            </div>
+            <pre></pre>
+        </div>
+        <div class="line"><div class="doc"><h1>Error Handling System</h1>
+<p>This module implements a <strong>hierarchical error system</strong> with position tracking for
+providing helpful, context-aware error messages to users.</p>
+<h2>Design Philosophy</h2>
+<p>Good error messages are critical for usability. This system provides:</p>
+<ol>
+<li><strong>Position Tracking</strong>: Every error knows where it occurred (line and column)</li>
+<li><strong>Context Display</strong>: Shows the problematic line with a caret (^) pointing to the error</li>
+<li><strong>Error Hierarchy</strong>: Different error types for different phases (lexing, parsing, semantics)</li>
+<li><strong>Inheritance</strong>: All errors inherit from <code>ParseError</code> for easy catching</li>
+</ol>
+<h2>Error Hierarchy</h2>
+<p><code>ParseError (base)
+├── LexerError (tokenization errors)
+│   └── InvalidTokenError
+├── SyntaxError (parsing errors)
+│   ├── UnexpectedTokenError
+│   └── UnexpectedEOFError
+└── SemanticError (context-sensitive errors)</code></p></div><pre class="source language-python"><strong class="lineNumber">26</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">27</strong><code class="language-python">&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">28</strong><code class="language-python">Error Classes for SQLite SQL Parser</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">29</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">30</strong><code class="language-python">Provides comprehensive error handling with position tracking and</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">31</strong><code class="language-python">helpful error messages.</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">32</strong><code class="language-python">&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">33</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">34</strong><code class="language-python">from typing import Optional</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">35</strong><code class="language-python">from .ast_nodes import Position, Span</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">36</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Base Error Class</h2>
+<p><code>ParseError</code> is the <strong>foundation</strong> of the error system. All parser errors inherit from it,
+providing consistent error formatting and position tracking across the entire parser.</p>
+<h3>Key Features</h3>
+<ul>
+<li>Stores <code>position</code> (line/column), <code>span</code> (start/end), and original <code>sql</code> text</li>
+<li>The <code>format_error()</code> method creates user-friendly error messages with context:</li>
+</ul>
+<p><code>Line 5, Column 10: Expected SELECT, found INSERT
+SELECT * FORM users
+^</code></p>
+<p>Notice the typo "FORM" instead of "FROM" - the caret points exactly to the error location.</p></div><pre class="source language-python"><strong class="lineNumber">54</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">55</strong><code class="language-python">class ParseError(Exception):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">56</strong><code class="language-python">    &quot;&quot;&quot;Base class for all parsing errors&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">57</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">58</strong><code class="language-python">    def __init__(self, message: str, position: Optional[Position] = None,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">59</strong><code class="language-python">                 span: Optional[Span] = None, sql: Optional[str] = None):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">60</strong><code class="language-python">        self.message = message</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">61</strong><code class="language-python">        self.position = position</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">62</strong><code class="language-python">        self.span = span</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">63</strong><code class="language-python">        self.sql = sql</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">64</strong><code class="language-python">        super().__init__(self.format_error())</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">65</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">66</strong><code class="language-python">    def format_error(self) -&gt; str:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">67</strong><code class="language-python">        &quot;&quot;&quot;Format error message with context&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">68</strong><code class="language-python">        result = self.message</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">69</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">70</strong><code class="language-python">        if self.position:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">71</strong><code class="language-python">            result = f&quot;Line {self.position.line}, Column {self.position.column}: {result}&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">72</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">73</strong><code class="language-python">        if self.sql and self.position:</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">74</strong><code class="language-python">            # Show snippet of SQL around error</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">75</strong><code class="language-python">            lines = self.sql.split(&#x27;\n&#x27;)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">76</strong><code class="language-python">            if 0 &lt;= self.position.line - 1 &lt; len(lines):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">77</strong><code class="language-python">                error_line = lines[self.position.line - 1]</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">78</strong><code class="language-python">                result += f&quot;\n{error_line}\n&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">79</strong><code class="language-python">                result += &quot; &quot; * (self.position.column - 1) + &quot;^&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">80</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">81</strong><code class="language-python">        return result</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">82</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Lexer Errors</h2>
+<p><code>LexerError</code> represents problems during <strong>tokenization</strong> - the first phase of parsing.
+These occur when the lexer encounters invalid characters or malformed tokens.</p>
+<h3>Example Scenarios</h3>
+<ul>
+<li>Invalid escape sequences in strings</li>
+<li>Unclosed string literals</li>
+<li>Invalid hex digits in BLOB literals</li>
+<li>Illegal characters not part of SQL syntax</li>
+</ul></div><pre class="source language-python"><strong class="lineNumber">94</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">95</strong><code class="language-python">class LexerError(ParseError):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">96</strong><code class="language-python">    &quot;&quot;&quot;Error during tokenization&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">97</strong><code class="language-python">    pass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">98</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Syntax Errors</h2>
+<p><code>SyntaxError</code> represents problems during <strong>parsing</strong> - when tokens are valid but
+arranged in an invalid grammar structure.</p>
+<p>This is the most common error type, raised when the parser encounters unexpected
+tokens or missing required syntax elements.</p></div><pre class="source language-python"><strong class="lineNumber">106</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">107</strong><code class="language-python">class SyntaxError(ParseError):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">108</strong><code class="language-python">    &quot;&quot;&quot;Syntax error during parsing&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">109</strong><code class="language-python">    pass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">110</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h3>Unexpected Token Error</h3>
+<p><code>UnexpectedTokenError</code> is raised when the parser expects one token type but finds another.
+This is the <strong>workhorse</strong> of syntax error reporting.</p>
+<h3>Example</h3>
+<p><code>python
+Expected TokenType.FROM, found TokenType.WHERE</code></p>
+<p>The parser maintains the expected and found values for detailed error messages and
+potential error recovery in the future.</p></div><pre class="source language-python"><strong class="lineNumber">124</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">125</strong><code class="language-python">class UnexpectedTokenError(SyntaxError):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">126</strong><code class="language-python">    &quot;&quot;&quot;Unexpected token encountered&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">127</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">128</strong><code class="language-python">    def __init__(self, expected: str, found: str,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">129</strong><code class="language-python">                 position: Optional[Position] = None,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">130</strong><code class="language-python">                 span: Optional[Span] = None, sql: Optional[str] = None):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">131</strong><code class="language-python">        message = f&quot;Expected {expected}, found {found}&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">132</strong><code class="language-python">        super().__init__(message, position, span, sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">133</strong><code class="language-python">        self.expected = expected</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">134</strong><code class="language-python">        self.found = found</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">135</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h3>Unexpected EOF Error</h3>
+<p><code>UnexpectedEOFError</code> is raised when the parser reaches the <strong>end of input</strong> while still
+expecting more tokens.</p>
+<h3>Example Scenarios</h3>
+<ul>
+<li><code>SELECT * FROM</code> (missing table name)</li>
+<li><code>CREATE TABLE users (</code> (unclosed parenthesis)</li>
+<li><code>BEGIN TRANSACTION</code> (missing statement after transaction start)</li>
+</ul>
+<p>This is a special case of unexpected token where the "found" token is always EOF.</p></div><pre class="source language-python"><strong class="lineNumber">148</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">149</strong><code class="language-python">class UnexpectedEOFError(SyntaxError):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">150</strong><code class="language-python">    &quot;&quot;&quot;Unexpected end of input&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">151</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">152</strong><code class="language-python">    def __init__(self, expected: str, position: Optional[Position] = None,</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">153</strong><code class="language-python">                 sql: Optional[str] = None):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">154</strong><code class="language-python">        message = f&quot;Unexpected end of input, expected {expected}&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">155</strong><code class="language-python">        super().__init__(message, position, None, sql)</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">156</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h3>Invalid Token Error</h3>
+<p><code>InvalidTokenError</code> is a specific <code>LexerError</code> for <strong>malformed tokens</strong> that can't
+be recovered from. This is rarer than syntax errors because the lexer is quite
+permissive (most invalid SQL will tokenize successfully, then fail during parsing).</p></div><pre class="source language-python"><strong class="lineNumber">162</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">163</strong><code class="language-python">class InvalidTokenError(LexerError):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">164</strong><code class="language-python">    &quot;&quot;&quot;Invalid token in input&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">165</strong><code class="language-python">    pass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">166</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"><h2>Semantic Errors</h2>
+<p><code>SemanticError</code> represents <strong>context-sensitive errors</strong> that aren't purely syntactic.
+These require understanding the meaning of the SQL, not just its structure.</p>
+<h3>Example Scenarios (not yet implemented)</h3>
+<ul>
+<li>Using a column name that doesn't exist</li>
+<li>Type mismatches in expressions</li>
+<li>Invalid function argument counts</li>
+<li>Ambiguous column references</li>
+</ul>
+<p>Currently this class exists as a placeholder for future semantic analysis features.</p></div><pre class="source language-python"><strong class="lineNumber">180</strong><code class="language-python"></code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">181</strong><code class="language-python">class SemanticError(ParseError):</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">182</strong><code class="language-python">    &quot;&quot;&quot;Semantic error (context-sensitive)&quot;&quot;&quot;</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">183</strong><code class="language-python">    pass</code></pre></div>
+<div class="line"><div class="doc"></div><pre class="source language-python"><strong class="lineNumber">184</strong><code class="language-python"></code></pre></div>
+    </main>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+
+</html>
