@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Software Development :: Code Generators",
 ]
 
-dependencies = []
+dependencies = ["build>=1.3.0,<2", "twine>=6.2.0,<7"]
 
 [project.optional-dependencies]
 dev = [
